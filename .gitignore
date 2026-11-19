@@ -1,0 +1,7 @@
+app/ShotDock
+app/launcher/ShotDockLauncher
+dist/
+__pycache__/
+*.pyc
+.DS_Store
+.update-public-key

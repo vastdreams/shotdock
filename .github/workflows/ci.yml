@@ -1,0 +1,22 @@
+name: ci
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build app
+        run: OUT=$RUNNER_TEMP zsh build.sh
+      - name: Build launcher
+        run: cd app/launcher && swiftc -O -o ShotDockLauncher main.swift -framework Cocoa -framework ApplicationServices
+      - name: Claim checker tests
+        run: pip3 install requests && python3 tests/test_claimcheck.py
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
