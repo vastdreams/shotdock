@@ -13,6 +13,7 @@ import type { Windows } from "./windows";
 import { openInEditor } from "./adapters/editors";
 import { openTerminal } from "./adapters/terminal";
 import * as ws from "./adapters/workspace";
+import { deliverToEditor } from "./adapters/editorDelivery";
 import { claudeBinary } from "./adapters/hosted/manager";
 import { lastTurn, buildPrompt, parseReport } from "./checks/checker";
 import { systemPreferences, desktopCapturer, shell } from "electron";
@@ -59,10 +60,19 @@ export function handlers(d: Deps): Record<RequestName, Handler> {
       if (r.ok) d.openTranscripts.add(r.value as string);
       return r;
     },
-    "session.send": ({ id, text, shotIds }) => {
+    "session.send": async ({ id, text, shotIds }) => {
       const shots = d.store.get().shots.filter((s) => shotIds.includes(s.id));
       const notes = shots.map((s) => s.note).filter(Boolean).join("\n\n");
-      const r = d.hosted.send(id, notes ? `${text}\n\n${notes}`.trim() : text, shots.map((s) => s.path));
+      const s = session(id);
+      // A chat that lives in the editor: mirror the message into that open chat, so it stays one chat in one place.
+      if (s && s.kind === "ide" && !d.hosted.has(id)) {
+        const r = await deliverToEditor({ sessionId: id, text: notes ? `${text}\n\n${notes}`.trim() : text,
+          images: shots.map((x) => x.path), transcript: d.claude.fileFor(id), returnPid: process.pid });
+        if (!r.ok) return fail("deliver_failed", r.message);
+        for (const x of shots) d.store.dispatch({ t: "shot.removed", id: x.id });
+        return ok(r.confirmed ? "Sent to the chat in your editor." : "Sent to the editor. It hasn't shown in the chat yet; check the editor.");
+      }
+      const r = d.hosted.send(id, notes ? `${text}\n\n${notes}`.trim() : text, shots.map((x) => x.path));
       if (r.ok) for (const s of shots) d.store.dispatch({ t: "shot.removed", id: s.id });
       return r;
     },

@@ -35,6 +35,12 @@ export function Composer({ s, shots, notify, onOpen, ask }: {
   const send = async () => {
     if (busy || (!text.trim() && !mine.length)) return;
     setBusy(true);
+    if (s.kind === "ide" && !live) {          // mirror into the chat that is open in the editor
+      const r = await call("session.send", { id: s.id, text, shotIds: mine.map((x) => x.id) });
+      setBusy(false);
+      if (r.ok) { setText(""); notify(String(r.value ?? "Sent.")); } else notify(r.message, true);
+      return;
+    }
     const id = await ensureDrivable(s, ask, notify);
     if (!id) { setBusy(false); return; }
     if (id !== s.id) onOpen(id);
@@ -46,7 +52,7 @@ export function Composer({ s, shots, notify, onOpen, ask }: {
   if (s.kind === "cursor-agent")
     return <div className="composer readonly">Cursor Agent chats are read-only here: Cursor has no way for other apps to send to them.</div>;
 
-  const label = live ? "Send" : s.kind === "hosted" ? "Resume and send" : "Continue here and send";
+  const label = live ? "Send" : s.kind === "hosted" ? "Resume and send" : s.kind === "ide" ? "Send to editor chat" : "Continue here and send";
   return (
     <div className="composer" onDragOver={(e) => e.preventDefault()}
          onDrop={(e) => { e.preventDefault(); void attachBlobs([...e.dataTransfer.files]); }}>
@@ -63,7 +69,8 @@ export function Composer({ s, shots, notify, onOpen, ask }: {
       )}
       <textarea ref={box} rows={3} value={text}
         placeholder={live ? "Message Claude…  (Enter to send, Shift+Enter for a new line)" : s.kind === "hosted"
-          ? "Message… (ShotDock resumes this chat when you send)" : "Message… (you'll be asked before ShotDock continues this chat)"}
+          ? "Message… (ShotDock resumes this chat when you send)" : s.kind === "ide"
+          ? "Message… (goes into this chat in your editor, then you're back here)" : "Message… (you'll be asked before ShotDock continues this chat)"}
         onChange={(e) => setText(e.target.value)}
         onPaste={(e) => { const imgs = [...e.clipboardData.files].filter((f) => f.type.startsWith("image/")); if (imgs.length) { e.preventDefault(); void attachBlobs(imgs); } }}
         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); } }} />

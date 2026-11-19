@@ -4,6 +4,8 @@ vi.mock("electron", () => ({ app: { on: () => undefined }, dialog: {}, ipcMain: 
   systemPreferences: { getMediaAccessStatus: () => "granted", isTrustedAccessibilityClient: () => true }, desktopCapturer: {} }));
 const opened: string[] = [];
 vi.mock("../src/main/adapters/editors", () => ({ openInEditor: async (id: string) => { opened.push(id); return "Cursor"; } }));
+const delivered: any[] = [];
+vi.mock("../src/main/adapters/editorDelivery", () => ({ deliverToEditor: async (o: any) => { delivered.push(o); return { ok: true, confirmed: true }; } }));
 import { handlers } from "../src/main/ipcServer";
 import { Store, initialState } from "../src/main/core/store";
 
@@ -14,7 +16,7 @@ function setup(kind: "ide" | "hosted", live = false) {
   const released: string[] = [];
   const hosted = { has: (id: string) => live && id === "c1", release: (id: string) => { released.push(id); return { ok: true }; },
     takeOver: async (id: string) => ({ ok: true, value: id }) } as any;
-  const h = handlers({ store, hosted, settings: {} as any, claude: { externallyLive: () => false, load: () => true } as any,
+  const h = handlers({ store, hosted, settings: {} as any, claude: { externallyLive: () => false, load: () => true, fileFor: () => "/t.jsonl" } as any,
     cursor: {} as any, capture: {} as any, windows: {} as any, openTranscripts: new Set(), onSettingsChanged() {}, quit() {} });
   return { h, store, released };
 }
@@ -34,5 +36,14 @@ describe("ownership rules", () => {
     expect(released).toEqual(["c1"]);
     expect(store.get().sessions.c1.kind).toBe("ide");
     expect(opened).toContain("c1");
+  });
+
+  it("sending to an editor chat mirrors it into the editor, with no takeover and no dialog", async () => {
+    const { h, released } = setup("ide");
+    (h as any);
+    const r = await h["session.send"]({ id: "c1", text: "hello", shotIds: [] });
+    expect(r.ok).toBe(true);
+    expect(delivered.at(-1)).toMatchObject({ sessionId: "c1", text: "hello", transcript: "/t.jsonl" });
+    expect(released).toEqual([]);
   });
 });

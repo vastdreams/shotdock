@@ -112,12 +112,16 @@ export function Reader({ s, items, notify, ask, onOpen }: {
           </select>}
           {live && s.state === "working" && <button className="btn danger" onClick={() => run("session.stop", { id: s.id }, "Stopped.")}>Stop</button>}
           {!live && s.kind === "hosted" && <button className="btn primary" onClick={() => void continueHere()}>Resume here</button>}
-          {(s.kind === "ide" || s.kind === "terminal") && <>
-            <button className="btn primary" title="Run this chat from ShotDock (close it in the editor first)" onClick={() => void continueHere()}>Continue here</button>
+          {s.kind === "terminal" && <>
+            <button className="btn primary" title="Run this chat from ShotDock (close it in the terminal first)" onClick={() => void continueHere()}>Continue here</button>
             <button className="btn" title="A new chat with this chat's history; the original is untouched" onClick={() => void copy()}>Copy to new chat</button>
           </>}
           <More items={[
             { label: "Check claims in the last answer", run: () => void run("checks.run", { id: s.id }, "Checked.") },
+            ...(s.kind === "ide" ? [
+              { label: "Run this chat in ShotDock instead…", run: () => void continueHere() },
+              { label: "Copy to a new ShotDock chat", run: () => void copy() },
+            ] : []),
             ...(s.kind !== "cursor-agent" ? [
               { label: "Continue in Terminal", run: () => void terminal() },
               { label: live ? "Send back to editor" : "Open in editor", run: () => void run("session.openInEditor", { id: s.id }, "Opened in the editor.") },

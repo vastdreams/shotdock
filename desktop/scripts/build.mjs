@@ -19,7 +19,8 @@ if (process.platform === "darwin") {
   const { execFileSync } = await import("node:child_process");
   const { mkdirSync } = await import("node:fs");
   mkdirSync(path.join(root, "assets/bin"), { recursive: true });
-  execFileSync("swiftc", ["-O", "-o", path.join(root, "assets/bin/shotdock-element"), path.join(root, "native/macos/element.swift")], { stdio: "inherit" });
+  for (const name of ["element", "deliver"])
+    execFileSync("swiftc", ["-O", "-o", path.join(root, `assets/bin/shotdock-${name}`), path.join(root, `native/macos/${name}.swift`)], { stdio: "inherit" });
 }
 
 await viteBuild({
