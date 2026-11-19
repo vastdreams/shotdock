@@ -8,6 +8,7 @@ import { execFile } from "node:child_process";
 import { app, shell } from "electron";
 import { bundled } from "../capture/capture";
 import { installedEditors } from "./editors";
+import { execFile as execFileCb } from "node:child_process";
 import { log } from "../core/log";
 
 const BUNDLES: Record<string, string> = { Cursor: "com.todesktop.230313mzl4w4u92", "VS Code": "com.microsoft.VSCode", Windsurf: "com.exafunction.windsurf" };
@@ -43,18 +44,38 @@ function landed(file: string, marker: string, since: number): boolean {
   } catch { return false; }
 }
 
-export async function deliverToEditor(o: { sessionId: string; text: string; images: string[]; transcript?: string; returnPid: number })
-  : Promise<{ ok: true; confirmed: boolean } | { ok: false; message: string }> {
-  if (process.platform !== "darwin") return { ok: false, message: "Sending into an editor chat is macOS only for now. Use Continue here." };
+const CLI: Record<string, string[]> = {
+  Cursor: ["/usr/local/bin/cursor", "/Applications/Cursor.app/Contents/Resources/app/bin/cursor"],
+  "VS Code": ["/usr/local/bin/code", "/opt/homebrew/bin/code", "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"],
+  Windsurf: ["/usr/local/bin/windsurf", "/Applications/Windsurf.app/Contents/Resources/app/bin/windsurf"],
+};
+
+/** `cursor <folder>`: focuses the window that has the folder open (or opens one). */
+function focusFolder(editor: string, folder: string): Promise<void> {
+  const bin = (CLI[editor] ?? []).find((p) => fs.existsSync(p));
+  if (!bin || !fs.existsSync(folder)) return Promise.resolve();
+  const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
+  return new Promise((r) => execFileCb(bin, [folder], { env, timeout: 8000 }, () => setTimeout(r, 900)));
+}
+
+/** Failures where ShotDock can safely continue the chat itself instead (nothing was typed anywhere). */
+export const CAN_FALL_BACK = new Set(["no_box", "editor not running", "editor did not come forward", "accessibility"]);
+
+export async function deliverToEditor(o: { sessionId: string; text: string; images: string[]; transcript?: string; returnPid: number; folder?: string })
+  : Promise<{ ok: true; confirmed: boolean } | { ok: false; message: string; code: string }> {
+  if (process.platform !== "darwin") return { ok: false, code: "editor not running", message: "Sending into an editor chat is macOS only for now." };
   const ed = installedEditors().find((e) => e.name === "Cursor") ?? installedEditors()[0];
-  if (!ed) return { ok: false, message: "No editor with the Claude Code extension was found." };
+  if (!ed) return { ok: false, code: "editor not running", message: "No editor with the Claude Code extension was found." };
   const since = Date.now();
-  // Reveal that exact chat in its window (opens it if its tab was closed). No prompt in the link: it would be refused.
+  // 1. Bring forward the editor window for the chat's folder (opens it if needed), so the chat opens in the right
+  //    window, not whichever one happens to be in front.
+  if (o.folder) await focusFolder(ed.name, o.folder);
+  // 2. Reveal that exact chat in it (opens it if its tab was closed). No prompt in the link: it would be refused.
   await shell.openExternal(`${ed.scheme}://anthropic.claude-code/open?session=${encodeURIComponent(o.sessionId)}`);
-  await new Promise((r) => setTimeout(r, 700));
+  await new Promise((r) => setTimeout(r, 1200));
   const r = await helper({ bundle: BUNDLES[ed.name], text: o.text, images: o.images, returnTo: o.returnPid });
   log(r.ok ? "info" : "warn", "deliver", r.ok ? "pasted" : "failed", { session: o.sessionId.slice(0, 8), error: r.error });
-  if (!r.ok) return { ok: false, message: REASONS[r.error ?? ""] ?? `Not sent: ${r.error}` };
+  if (!r.ok) return { ok: false, code: r.error ?? "unknown", message: REASONS[r.error ?? ""] ?? `Not sent: ${r.error}` };
   if (!o.transcript) return { ok: true, confirmed: false };
   const marker = JSON.stringify(o.text.slice(0, 30)).slice(1, -1) || '"type":"image"';
   for (let i = 0; i < 16; i++) {

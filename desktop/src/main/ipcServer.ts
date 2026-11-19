@@ -13,7 +13,7 @@ import type { Windows } from "./windows";
 import { openInEditor } from "./adapters/editors";
 import { openTerminal } from "./adapters/terminal";
 import * as ws from "./adapters/workspace";
-import { deliverToEditor } from "./adapters/editorDelivery";
+import { deliverToEditor, CAN_FALL_BACK } from "./adapters/editorDelivery";
 import { claudeBinary } from "./adapters/hosted/manager";
 import { lastTurn, buildPrompt, parseReport } from "./checks/checker";
 import { systemPreferences, desktopCapturer, shell } from "electron";
@@ -67,9 +67,28 @@ export function handlers(d: Deps): Record<RequestName, Handler> {
       const s = session(id);
       // A chat that lives in the editor: mirror the message into that open chat, so it stays one chat in one place.
       if (s && s.kind === "ide" && !d.hosted.has(id)) {
-        const r = await deliverToEditor({ sessionId: id, text: notes ? `${text}\n\n${notes}`.trim() : text,
-          images: shots.map((x) => x.path), transcript: d.claude.fileFor(id), returnPid: process.pid });
-        if (!r.ok) return fail("deliver_failed", r.message);
+        const full = notes ? `${text}\n\n${notes}`.trim() : text;
+        const r = await deliverToEditor({ sessionId: id, text: full, images: shots.map((x) => x.path),
+          transcript: d.claude.fileFor(id), returnPid: process.pid, folder: s.folder });
+        if (!r.ok) {
+          // Couldn't get into the editor's chat box. If the chat isn't active anywhere, ShotDock continues the same
+          // chat itself rather than failing; a draft in the editor's box is the one case we always stop for.
+          if (CAN_FALL_BACK.has(r.code) && !d.claude.externallyLive(id)) {
+            const t = await d.hosted.takeOver(id, s.folder, s.title, false, false);
+            if (t.ok) {
+              if (!d.store.get().transcripts[id]?.length) d.claude.load(id);
+              d.openTranscripts.add(id);
+              const sent = d.hosted.send(id, full, shots.map((x) => x.path));
+              if (sent.ok) {
+                for (const x of shots) d.store.dispatch({ t: "shot.removed", id: x.id });
+                const why = r.code === "accessibility" ? "ShotDock isn't allowed to use Accessibility yet" : "the chat didn't open in the editor";
+                return ok(`Sent. ${why[0].toUpperCase() + why.slice(1)}, so ShotDock continued the same chat here. More › Send back to editor returns it.`);
+              }
+            }
+          }
+          if (r.code === "accessibility") systemPreferences.isTrustedAccessibilityClient(true);
+          return fail("deliver_failed", r.message);
+        }
         for (const x of shots) d.store.dispatch({ t: "shot.removed", id: x.id });
         return ok(r.confirmed ? "Sent to the chat in your editor." : "Sent to the editor. It hasn't shown in the chat yet; check the editor.");
       }

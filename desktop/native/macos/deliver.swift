@@ -54,10 +54,12 @@ func focusedBox() -> AXUIElement? {
     return role == "AXTextArea" && desc.contains("message input") ? el : nil
 }
 var box: AXUIElement?
-for _ in 0..<4 {
+// The chat may still be loading (just opened from its link): keep trying for up to ~10 s.
+for i in 0..<14 {
     if let b = focusedBox() { box = b; break }
+    if focusedPid() != app.processIdentifier { app.activate(); usleep(300_000) }
     key(8, [.maskControl, .maskAlternate, .maskCommand])          // Ctrl+Opt+Cmd+C -> claude-vscode.focus
-    usleep(450_000)
+    usleep(i < 3 ? 400_000 : 700_000)
 }
 guard let target = box else { out(["ok": false, "error": "no_box"]) }
 let draft = (attr(target, kAXValueAttribute) as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
