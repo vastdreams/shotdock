@@ -14,6 +14,7 @@ export interface PendingPermission {
   tool: string;
   summary: string;      // one line a person can judge, e.g. "Bash: npm test"
   canAlways: boolean;   // Claude Code offered "always allow" rules for this request
+  external?: boolean;   // seen in another app's transcript: answer it there (no Allow / Deny here)
 }
 
 export interface Session {
@@ -28,6 +29,9 @@ export interface Session {
   model?: string;
   lastActivity: number; // epoch ms
   error?: string;
+  live?: boolean;       // ShotDock is running this chat right now (only then can it Send / Stop / Allow)
+  claims?: { at: number; checking?: boolean; error?: string;
+             items: { claim: string; verdict: "supported" | "unsupported" | "unclear"; why: string }[]; followup?: string };
 }
 
 export type ItemRole = "user" | "assistant" | "tool" | "result" | "system";
@@ -46,6 +50,7 @@ export interface Shot {
   path: string;         // absolute PNG path
   createdAt: number;
   sourceWindow?: string;
+  sessionId?: string;   // the chat this shot was picked for; unassigned shots go with the open chat
   note?: string;        // extra context (e.g. element details)
 }
 
@@ -56,7 +61,7 @@ export interface Settings {
   hasApiKey: boolean;               // never the key itself
   model: string;                    // default model for new hosted sessions
   permissionMode: "default" | "acceptEdits" | "plan";
-  hotkeys: { capture: string; toggleHub: string; captureWindow: string; toggleWidget: string };
+  hotkeys: { capture: string; toggleHub: string; captureWindow: string; toggleWidget: string; element: string };
   alwaysOnTop: boolean;
   showOnAllDesktops: boolean;
   recentDays: number;
@@ -75,7 +80,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hasApiKey: false,
   model: "claude-opus-5-5",
   permissionMode: "default",
-  hotkeys: { capture: "Control+Alt+X", toggleHub: "Control+Alt+Space", captureWindow: "Control+Alt+W", toggleWidget: "Control+Alt+D" },
+  hotkeys: { capture: "Control+Alt+X", toggleHub: "Control+Alt+Space", captureWindow: "Control+Alt+W", toggleWidget: "Control+Alt+D", element: "Control+Alt+E" },
   alwaysOnTop: true,
   showOnAllDesktops: true,
   recentDays: 3,

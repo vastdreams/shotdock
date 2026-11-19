@@ -59,6 +59,30 @@ export function ago(ms: number): string {
 }
 
 export const ownerLabel = (s: Session) =>
-  s.kind === "hosted" ? "ShotDock" : s.kind === "cursor-agent" ? "Cursor Agent" : s.kind === "terminal" ? "Terminal" : "Editor";
+  s.kind === "hosted" ? (s.live ? "ShotDock" : "ShotDock (paused)") : s.kind === "cursor-agent" ? "Cursor Agent" : s.kind === "terminal" ? "Terminal" : "Editor";
 
-export const canDrive = (s: Session) => s.kind === "hosted";
+/** ShotDock can send / stop / answer permissions only while it is running the chat. */
+export const canDrive = (s: Session) => s.kind === "hosted" && s.live === true;
+
+export type ContinueChoice = "continue" | "copy" | null;
+
+/**
+ * Make a chat sendable from ShotDock and return the id to send to (a copy gets a new id), or null.
+ * - running here: as is
+ * - ShotDock's own chat from an earlier run: resume quietly (nobody else owns it)
+ * - editor / terminal chat: ask first (close it there, or copy it), never silently
+ */
+export async function ensureDrivable(s: Session, ask: (s: Session) => Promise<ContinueChoice>,
+                                     notify: (m: string, bad?: boolean) => void): Promise<string | null> {
+  if (canDrive(s)) return s.id;
+  if (s.kind === "cursor-agent") { notify("Cursor Agent chats can be read here but not driven. Open them in Cursor.", true); return null; }
+  let args: { id: string; fork: boolean; confirmClosed: boolean } = { id: s.id, fork: false, confirmClosed: true };
+  if (s.kind !== "hosted") {
+    const choice = await ask(s);
+    if (!choice) return null;
+    args = { id: s.id, fork: choice === "copy", confirmClosed: choice === "continue" };
+  }
+  const r = await call("session.takeOver", args);
+  if (!r.ok) { notify(r.message, true); return null; }
+  return r.value as string;
+}

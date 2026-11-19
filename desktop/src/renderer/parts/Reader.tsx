@@ -1,10 +1,28 @@
-// The open chat: header with ownership and actions, the transcript, the permission bar.
+// The open chat: header (who runs it, model, actions), claim check results, transcript, permission / waiting bar.
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Session, TranscriptItem } from "../../shared/model";
-import { call, ownerLabel, canDrive } from "../api";
+import { call, ownerLabel, canDrive, ensureDrivable, type ContinueChoice } from "../api";
 import { Markdown } from "./Markdown";
 import { StateDot } from "./Sidebar";
+
+const MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-fable-5-2"];
+
+function More({ items }: { items: { label: string; run(): void }[] }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [open]);
+  return (
+    <div className="more">
+      <button className="btn ghost" title="More actions" onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>More ▾</button>
+      {open && <div className="menu">{items.map((i) => <button key={i.label} onClick={() => { setOpen(false); i.run(); }}>{i.label}</button>)}</div>}
+    </div>
+  );
+}
 
 function ToolRow({ item, result }: { item: TranscriptItem; result?: TranscriptItem }) {
   const [open, setOpen] = useState(false);
@@ -16,6 +34,7 @@ function ToolRow({ item, result }: { item: TranscriptItem; result?: TranscriptIt
         <span className="tool-name">{item.tool?.name}</span>
         <span className="tool-input">{item.tool?.input}</span>
         {err && <span className="badge red">error</span>}
+        {!result && <span className="badge">running</span>}
       </button>
       {open && result && <pre className="tool-out">{result.text || "(no output)"}</pre>}
     </div>
@@ -37,7 +56,28 @@ function Items({ items }: { items: TranscriptItem[] }) {
   })}</>;
 }
 
-export function Reader({ s, items, notify }: { s: Session; items: TranscriptItem[]; notify(msg: string, bad?: boolean): void }) {
+function Claims({ s, onUse }: { s: Session; onUse(text: string): void }) {
+  const c = s.claims;
+  if (!c) return null;
+  if (c.checking) return <div className="claims"><span className="muted">Checking the last answer…</span></div>;
+  if (c.error) return <div className="claims bad">Claim check failed: {c.error}</div>;
+  const bad = c.items.filter((i) => i.verdict === "unsupported").length;
+  return (
+    <details className={`claims ${bad ? "bad" : ""}`} open={bad > 0}>
+      <summary>{c.items.length ? `${c.items.length} claim${c.items.length > 1 ? "s" : ""} checked · ${bad} not backed by evidence` : "No checkable claims in the last answer"}</summary>
+      {c.items.map((i, k) => (
+        <div key={k} className={`claim v-${i.verdict}`}><span className="verdict">{i.verdict}</span> {i.claim}<div className="why">{i.why}</div></div>
+      ))}
+      {c.followup && <div className="followup"><div>Suggested follow-up:</div><div className="fu-text">{c.followup}</div>
+        <button className="btn sm" onClick={() => onUse(c.followup!)}>Copy to clipboard</button></div>}
+    </details>
+  );
+}
+
+export function Reader({ s, items, notify, ask, onOpen }: {
+  s: Session; items: TranscriptItem[]; notify(msg: string, bad?: boolean): void;
+  ask(s: Session): Promise<ContinueChoice>; onOpen(id: string): void;
+}) {
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   useEffect(() => { void call("transcript.load", { id: s.id }); return () => { void call("transcript.close", { id: s.id }); }; }, [s.id]);
@@ -45,8 +85,15 @@ export function Reader({ s, items, notify }: { s: Session; items: TranscriptItem
   const run = async (name: Parameters<typeof call>[0], args: object, done?: string) => {
     const r = await call(name, args as never);
     notify(r.ok ? done ?? "Done." : r.message, !r.ok);
+    return r;
   };
-  const mine = canDrive(s);
+  const live = canDrive(s);
+  const continueHere = async () => { const id = await ensureDrivable(s, ask, notify); if (id) { if (id !== s.id) onOpen(id); notify("ShotDock is running this chat now."); } };
+  const copy = async () => { const r = await run("session.takeOver", { id: s.id, fork: true }, "Copied into a new ShotDock chat."); if (r.ok) onOpen(r.value as string); };
+  const terminal = async () => {
+    if (s.kind === "ide" && !(await ask(s))) return;
+    await run("session.openTerminal", { id: s.id }, "Opened in Terminal.");
+  };
 
   return (
     <div className="reader">
@@ -55,24 +102,42 @@ export function Reader({ s, items, notify }: { s: Session; items: TranscriptItem
           <StateDot s={s} />
           <div>
             <div className="title">{s.title}</div>
-            <div className="sub">{s.window} · {ownerLabel(s)}{s.model ? ` · ${s.model}` : ""}{s.error ? ` · ${s.error}` : ""}</div>
+            <div className="sub">{s.window} · {ownerLabel(s)}{!live && s.model ? ` · ${s.model}` : ""}{s.error ? ` · ${s.error}` : ""}</div>
           </div>
         </div>
         <div className="actions">
-          {mine && s.state === "working" && <button className="btn danger" onClick={() => run("session.stop", { id: s.id }, "Stopped.")}>Stop</button>}
-          {!mine && s.kind !== "cursor-agent" && <>
-            <button className="btn primary" onClick={() => run("session.takeOver", { id: s.id, fork: false }, "ShotDock is running this chat now.")}>Take over</button>
-            <button className="btn" onClick={() => run("session.takeOver", { id: s.id, fork: true }, "Forked into a new ShotDock chat.")}>Fork</button>
+          {live && <select className="model" value={s.model ?? ""} title="Model for the next replies"
+                           onChange={(e) => run("session.setModel", { id: s.id, model: e.target.value }, `Model: ${e.target.value}`)}>
+            {[...new Set([s.model ?? MODELS[0], ...MODELS])].map((m) => <option key={m}>{m}</option>)}
+          </select>}
+          {live && s.state === "working" && <button className="btn danger" onClick={() => run("session.stop", { id: s.id }, "Stopped.")}>Stop</button>}
+          {!live && s.kind === "hosted" && <button className="btn primary" onClick={() => void continueHere()}>Resume here</button>}
+          {(s.kind === "ide" || s.kind === "terminal") && <>
+            <button className="btn primary" title="Run this chat from ShotDock (close it in the editor first)" onClick={() => void continueHere()}>Continue here</button>
+            <button className="btn" title="A new chat with this chat's history; the original is untouched" onClick={() => void copy()}>Copy to new chat</button>
           </>}
-          {mine && <button className="btn" onClick={() => run("session.handBack", { id: s.id }, "Handed back to the editor.")}>Hand back</button>}
-          {s.kind !== "cursor-agent" && <button className="btn ghost" onClick={() => run("session.openInEditor", { id: s.id }, "Opened in the editor.")}>Open in editor</button>}
+          <More items={[
+            { label: "Check claims in the last answer", run: () => void run("checks.run", { id: s.id }, "Checked.") },
+            ...(s.kind !== "cursor-agent" ? [
+              { label: "Continue in Terminal", run: () => void terminal() },
+              { label: live ? "Send back to editor" : "Open in editor", run: () => void run("session.openInEditor", { id: s.id }, "Opened in the editor.") },
+            ] : []),
+          ]} />
         </div>
       </header>
+      <Claims s={s} onUse={(t) => { void navigator.clipboard.writeText(t); notify("Follow-up copied. Paste it in the message box."); }} />
       <div className="transcript" ref={scroller}
            onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}>
-        {items.length ? <Items items={items} /> : <div className="empty">{mine ? "Say what you want done." : "Loading…"}</div>}
+        {items.length ? <Items items={items} /> : <div className="empty">{live ? "Say what you want done." : "Loading…"}</div>}
       </div>
-      {s.state === "needs-you" && s.needs && (
+      {s.state === "needs-you" && s.needs && (s.needs.external ? (
+        <div className="permission">
+          <div className="perm-text"><strong>Waiting in {s.owner.app === "Terminal" ? "the terminal" : "your editor"}</strong> <code>{s.needs.summary}</code></div>
+          <div className="perm-actions">
+            {s.kind !== "cursor-agent" && <button className="btn primary" onClick={() => run("session.openInEditor", { id: s.id }, "Opened in the editor.")}>Answer in editor</button>}
+          </div>
+        </div>
+      ) : (
         <div className="permission">
           <div className="perm-text"><strong>Claude wants to run</strong> <code>{s.needs.summary}</code></div>
           <div className="perm-actions">
@@ -81,7 +146,7 @@ export function Reader({ s, items, notify }: { s: Session; items: TranscriptItem
             <button className="btn danger" onClick={() => run("session.permission", { id: s.id, requestId: s.needs!.requestId, decision: "deny" }, "Denied.")}>Deny</button>
           </div>
         </div>
-      )}
+      ))}
     </div>
   );
 }

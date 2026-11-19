@@ -11,6 +11,19 @@ import type { CursorAgentsWatcher } from "./adapters/watch/cursorAgents";
 import type { Capture } from "./capture/capture";
 import type { Windows } from "./windows";
 import { openInEditor } from "./adapters/editors";
+import { openTerminal } from "./adapters/terminal";
+import { claudeBinary } from "./adapters/hosted/manager";
+import { lastTurn, buildPrompt, parseReport } from "./checks/checker";
+import { systemPreferences, desktopCapturer, shell } from "electron";
+
+const PANES = {
+  screen: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+  accessibility: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+};
+export function permissions() {
+  if (process.platform !== "darwin") return { screen: "granted", accessibility: "granted" };
+  return { screen: systemPreferences.getMediaAccessStatus("screen"), accessibility: systemPreferences.isTrustedAccessibilityClient(false) ? "granted" : "denied" };
+}
 import { log } from "./core/log";
 
 export interface Deps {
@@ -47,16 +60,21 @@ export function handlers(d: Deps): Record<RequestName, Handler> {
     },
     "session.send": ({ id, text, shotIds }) => {
       const shots = d.store.get().shots.filter((s) => shotIds.includes(s.id));
-      const r = d.hosted.send(id, text, shots.map((s) => s.path));
+      const notes = shots.map((s) => s.note).filter(Boolean).join("\n\n");
+      const r = d.hosted.send(id, notes ? `${text}\n\n${notes}`.trim() : text, shots.map((s) => s.path));
       if (r.ok) for (const s of shots) d.store.dispatch({ t: "shot.removed", id: s.id });
       return r;
     },
     "session.stop": ({ id }) => d.hosted.stop(id),
     "session.permission": ({ id, requestId, decision }) => d.hosted.decide(id, requestId, decision),
-    "session.takeOver": async ({ id, fork }) => {
+    "session.takeOver": async ({ id, fork, confirmClosed }) => {
       const s = session(id);
       if (!s) return fail("unknown_session", "That chat is no longer listed.");
       if (s.kind === "cursor-agent") return fail("unsupported", "Cursor Agent chats can be read here but not driven. Open them in Cursor.");
+      // A chat that belongs to an editor or terminal may still be open there. Continuing it here while it is open
+      // there would give it two writers, so the person must confirm they closed it (or copy it instead).
+      if (!fork && s.kind !== "hosted" && !confirmClosed)
+        return fail("confirm_needed", `This chat belongs to ${s.owner.app === "Terminal" ? "a terminal" : "your editor"}. Close it there first, or copy it to a new chat.`);
       const prior = d.store.get().transcripts[id] ?? [];
       const r = await d.hosted.takeOver(id, s.folder, s.title, d.claude.externallyLive(id), fork);
       if (!r.ok) return r;
@@ -73,12 +91,63 @@ export function handlers(d: Deps): Record<RequestName, Handler> {
       return ed ? ok(ed) : fail("no_editor", "No editor with the Claude Code extension was found. The chat is released; resume it with `claude --resume`.");
     },
     "session.openInEditor": async ({ id }) => {
+      if (d.hosted.has(id)) {   // one writer: stop ShotDock's side before the editor resumes it
+        d.hosted.release(id);
+        d.store.dispatch({ t: "session.patch", id, patch: { kind: "ide", owner: { kind: "ide", app: "Editor" }, state: "idle", needs: undefined } });
+      }
       const ed = await openInEditor(id);
       return ed ? ok(ed) : fail("no_editor", "No supported editor is installed.");
     },
     "session.setModel": ({ id, model }) => d.hosted.setModel(id, model),
+    "session.openTerminal": async ({ id, folder }) => {
+      const bin = claudeBinary();
+      if (!bin) return fail("no_claude", "Claude Code was not found inside ShotDock. Reinstall ShotDock.");
+      const s = id ? session(id) : undefined;
+      const dir = s?.folder || folder;
+      if (!dir) return fail("bad_args", "Pick a chat or a folder.");
+      if (s && d.hosted.has(s.id)) {
+        d.hosted.release(s.id);
+        d.store.dispatch({ t: "session.patch", id: s.id, patch: { kind: "terminal", owner: { kind: "terminal", app: "Terminal" }, state: "idle", needs: undefined } });
+      }
+      try { await openTerminal(bin, dir, s?.id); return ok(); }
+      catch (e) { return fail("terminal", String(e)); }
+    },
+    "checks.run": async ({ id }) => {
+      const s = session(id);
+      if (!s) return fail("unknown_session", "That chat is no longer listed.");
+      if (!d.store.get().transcripts[id]?.length) { if (s.kind === "cursor-agent") d.cursor.load(id); else d.claude.load(id); }
+      const turn = lastTurn(d.store.get().transcripts[id] ?? []);
+      if (!turn.some((i) => i.role === "assistant")) return fail("nothing_to_check", "There is no answer to check yet.");
+      d.store.dispatch({ t: "session.patch", id, patch: { claims: { at: Date.now(), checking: true, items: [] } } });
+      const r = await d.hosted.ask(buildPrompt(turn));
+      if (!r.ok) { d.store.dispatch({ t: "session.patch", id, patch: { claims: { at: Date.now(), items: [], error: r.message } } }); return r; }
+      try {
+        const rep = parseReport(r.value ?? "");
+        d.store.dispatch({ t: "session.patch", id, patch: { claims: { at: rep.at, items: rep.claims, followup: rep.followup } } });
+        return ok(rep.claims.length);
+      } catch (e) {
+        d.store.dispatch({ t: "session.patch", id, patch: { claims: { at: Date.now(), items: [], error: String(e) } } });
+        return fail("bad_reply", String(e));
+      }
+    },
     "shot.capture": async ({ mode }) => {
-      const shot = await d.capture.take(mode);
+      if (process.platform === "darwin" && permissions().screen !== "granted") {
+        // Asking for a screen source registers ShotDock with macOS and shows its prompt; then open the right pane.
+        try { await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 1, height: 1 } }); } catch { /* prompt shown */ }
+        if (permissions().screen !== "granted") {
+          await shell.openExternal(PANES.screen);
+          return fail("screen_permission", "Turn on ShotDock in System Settings › Privacy & Security › Screen & System Audio Recording, then quit and reopen ShotDock.");
+        }
+      }
+      let shot;
+      try { shot = await d.capture.take(mode); }
+      catch (e) {
+        if (String(e).includes("accessibility")) {
+          systemPreferences.isTrustedAccessibilityClient(true);   // shows macOS's "allow ShotDock" prompt
+          return fail("accessibility", "Allow ShotDock in System Settings › Privacy & Security › Accessibility, then try again.");
+        }
+        return fail("capture", String(e).replace(/^Error: /, ""));
+      }
       if (!shot) return fail("cancelled", "Screenshot cancelled.");
       d.store.dispatch({ t: "shot.added", shot });
       d.windows.showHub({ choose: shot.id });
@@ -89,6 +158,13 @@ export function handlers(d: Deps): Record<RequestName, Handler> {
       if (!shot) return fail("bad_image", "Only PNG, JPEG and WebP images can be attached.");
       d.store.dispatch({ t: "shot.added", shot });
       return ok(shot.id);
+    },
+    "shot.assign": ({ id, sessionId }) => { d.store.dispatch({ t: "shot.patch", id, patch: { sessionId } }); return ok(); },
+    "shot.save": ({ id, dataUrl }) => {
+      const shot = d.store.get().shots.find((x) => x.id === id);
+      if (!shot || !d.capture.overwrite(shot.path, dataUrl)) return fail("save_failed", "Could not save the marked-up screenshot.");
+      d.store.dispatch({ t: "shot.patch", id, patch: { createdAt: Date.now() } });  // new key so previews refresh
+      return ok();
     },
     "shot.remove": ({ id }) => { d.store.dispatch({ t: "shot.removed", id }); return ok(); },
     "shot.clear": () => { d.store.dispatch({ t: "shot.cleared" }); return ok(); },
@@ -106,6 +182,13 @@ export function handlers(d: Deps): Record<RequestName, Handler> {
     "window.show": ({ view, sessionId }) => { d.windows.showHub(sessionId ? { open: sessionId } : { view }); return ok(); },
     "window.hideWidget": () => { d.windows.widget?.hide(); return ok(); },
     "app.quit": () => { d.quit(); return ok(); },
+    "permissions.get": () => ok(permissions()),
+    "permissions.open": async ({ which }) => {
+      if (which === "accessibility") systemPreferences.isTrustedAccessibilityClient(true);
+      else { try { await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 1, height: 1 } }); } catch { /* ok */ } }
+      if (process.platform === "darwin") await shell.openExternal(PANES[which as "screen" | "accessibility"]);
+      return ok();
+    },
   };
 }
 

@@ -62,7 +62,7 @@ export class HostedManager {
     this.registry.claim(hs.id, false);
     this.store.dispatch({ t: "session.upserted", s: {
       id: hs.id, kind: "hosted", owner: { kind: "hosted", app: "ShotDock" }, folder: o.folder, window: path.basename(o.folder),
-      title: o.title, state: "idle", model: o.model ?? st.model, lastActivity: Date.now(),
+      title: o.title, state: "idle", model: o.model ?? st.model, lastActivity: Date.now(), live: true, error: undefined,
     } });
     log("info", "hosted", "opened", { id: hs.id, resumed: !!o.id, fork: !!o.fork });
     return ok(hs.id);
@@ -118,10 +118,29 @@ export class HostedManager {
     hs.close();
     this.sessions.delete(id);
     this.registry.release(id);
+    this.store.dispatch({ t: "session.patch", id, patch: { live: false, needs: undefined } });
     return ok();
   }
 
   closeAll(): void { for (const id of [...this.sessions.keys()]) this.release(id); }
+
+  /** One question to Claude with no tools and nothing saved (used by the claim checker). */
+  async ask(prompt: string): Promise<Result<string>> {
+    const env = this.env();
+    if (!env.ok) return env;
+    try {
+      const q = (this.queryOverride ?? (await realQuery())) as unknown as (p: object) => AsyncIterable<any>;
+      const childEnv: Record<string, string | undefined> = { ...process.env, ...env.value };
+      for (const k of ["ELECTRON_RUN_AS_NODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDECODE"]) delete childEnv[k];
+      let text = "";
+      for await (const m of q({ prompt, options: { cwd: os.tmpdir(), model: this.store.get().settings.model, maxTurns: 1,
+        persistSession: false, tools: [], env: childEnv, pathToClaudeCodeExecutable: claudeBinary() } })) {
+        if (m?.type === "assistant") text += (m.message?.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
+        if (m?.type === "result" && m.subtype !== "success") return fail("ask_failed", `Claude answered with an error: ${m.subtype}`);
+      }
+      return ok(text);
+    } catch (e) { return fail("ask_failed", String(e).slice(0, 300)); }
+  }
 
   /** One short turn in a temp folder, not saved, to prove the connection works. Reports model and time. */
   async test(): Promise<Result<{ model: string; ms: number; source: string }>> {

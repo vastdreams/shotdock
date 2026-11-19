@@ -27,7 +27,10 @@ editors set it and it makes Electron run as plain Node.
 | `Ctrl+Opt+Space` (`Ctrl+Alt+Space`) | Show or hide the main window |
 | `Ctrl+Opt+D` | Quick panel (works when macOS hides the menu bar icon) |
 | `Ctrl+Opt+X` / `Ctrl+Opt+W` | Screenshot an area / a window, then pick the chat it goes to |
-| Main window | Chats grouped by folder; read any chat; Send, Stop, Allow / Deny, Take over, Fork, Hand back, Open in editor |
+| `Ctrl+Opt+E` | Screenshot the element under the mouse, with its app, window, page address and text (macOS) |
+| Main window | Chats grouped by folder (⌘\ hides the list, ⊟ folds all folders); read any chat; Send, Stop, Allow / Deny, model picker |
+| Chat header | **Continue here** (asks you to close it in the editor first), **Copy to new chat**, **Resume here** (ShotDock's own chats after a restart), More ▾: Check claims, Continue in Terminal, Open in editor / Send back to editor |
+| Screenshot chips | Click to mark up: Box, Arrow, Text, Blur (pixelates) |
 
 Connection (Settings): **Use my Claude Code setup** (no key; Claude Code uses what you configured for it) or an
 **Anthropic API key** (encrypted by the OS). ShotDock never offers or handles a claude.ai login.
@@ -76,8 +79,22 @@ scripts/build.mjs          esbuild (main, preload) + Vite (renderer)
 4. Every request is validated and returns ok or a coded error the UI shows.
 5. Files stay under 400 lines; one responsibility each.
 
+## Safety rules for chats in other apps
+
+- ShotDock sends only to chats it is running. An editor or terminal chat needs **Continue here**, which asks you to
+  close it there first, or **Copy to new chat**. Nothing is taken over silently.
+- If the editor or a terminal writes to a chat while ShotDock runs it, ShotDock stops its side at once and says so.
+- Open in editor / Continue in Terminal on a chat ShotDock runs stops ShotDock's side first.
+- "Needs you" for editor and terminal chats is read from their transcripts (an unanswered tool call or question);
+  you answer those in the editor. Allow / Deny in ShotDock is for its own chats.
+
+## Signing
+
+`npm run pack:mac` signs with the local identity "ShotDock Local Signing" (scripts/sign-local.sh) so macOS keeps
+Screen Recording / Accessibility across rebuilds. Releases need a Developer ID (`npm run dist:mac`).
+
 ## Not done yet (alpha)
 
-- Signing and notarization (needs an Apple Developer ID) and a signed Windows installer (needs a certificate).
-- Windows: built from the same code but not yet run on a Windows machine.
-- Terminal chats inside ShotDock (node-pty + xterm), page-element capture, markup, claim checker, auto-update.
+- Notarized release (needs an Apple Developer ID) and a signed Windows installer (needs a certificate).
+- Windows: built from the same code but not yet run on a Windows machine; element capture is macOS only.
+- A terminal inside ShotDock (today: Continue in Terminal opens the system terminal), auto-update.

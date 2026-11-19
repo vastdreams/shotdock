@@ -12,7 +12,7 @@ import { CursorAgentsWatcher } from "./adapters/watch/cursorAgents";
 import { Capture } from "./capture/capture";
 import { Windows } from "./windows";
 import { AppTray } from "./tray";
-import { registerIpc, handlers, type Deps } from "./ipcServer";
+import { registerIpc, handlers, permissions, type Deps } from "./ipcServer";
 import { CHANNEL_STATE } from "../shared/ipc";
 import type { AppState } from "../shared/model";
 
@@ -29,7 +29,16 @@ app.whenReady().then(() => {
   const store = new Store(initialState(settingsFile.load()));
   const registry = new Registry();
   const hosted = new HostedManager(store, registry, settingsFile);
-  const claude = new ClaudeProjectsWatcher(store, (id) => hosted.has(id));
+  const claude = new ClaudeProjectsWatcher(store, (id) => hosted.has(id), (id, other) => {
+    // Another app wrote to a chat ShotDock is running: step back so there is only one writer.
+    hosted.release(id);
+    const app_ = other === "cli" ? "a terminal" : "your editor";
+    store.dispatch({ t: "session.patch", id, patch: { kind: other === "cli" ? "terminal" : "ide",
+      owner: { kind: other === "cli" ? "terminal" : "ide", app: other === "cli" ? "Terminal" : "Editor" }, state: "idle",
+      error: `Continued in ${app_}, so ShotDock stopped running it.` } });
+    log("warn", "registry", "conflict", { id, other });
+    if (Notification.isSupported()) new Notification({ title: "ShotDock stepped back", body: `A chat ShotDock was running was continued in ${app_}. ShotDock stopped so only one app writes to it.` }).show();
+  });
   const cursor = new CursorAgentsWatcher(store);
   const capture = new Capture(path.join(data, "shots"));
   const windows = new Windows(() => store.get().settings);
@@ -50,9 +59,11 @@ app.whenReady().then(() => {
   store.subscribe(push);
   app.on("browser-window-created", (_e, w: BrowserWindow) => w.webContents.on("did-finish-load", () => w.webContents.send(CHANNEL_STATE, snapshot(store.get()))));
 
-  const capture_ = (mode: "area" | "window" | "screen") => {
+  const capture_ = async (mode: "area" | "window" | "screen" | "element") => {
     windows.widget?.hide();
-    void call["shot.capture"]({ mode });
+    const r = await call["shot.capture"]({ mode });
+    log("info", "capture", "result", { mode, ok: r.ok, code: r.ok ? undefined : r.code });
+    if (!r.ok && r.code !== "cancelled" && Notification.isSupported()) new Notification({ title: "ShotDock screenshot", body: r.message }).show();
   };
   const newChat = async () => {
     const f = await call["folder.pick"]({});
@@ -61,7 +72,7 @@ app.whenReady().then(() => {
 
   const tray = new AppTray({
     toggleWidget: (b) => windows.toggleWidget(b), showHub: (nav) => windows.showHub(nav),
-    capture: capture_, newChat: () => void newChat(), quit,
+    capture: (m) => void capture_(m), newChat: () => void newChat(), quit,
   }, () => store.get());
 
   // Notify once when a chat starts needing you; keep the tray count current.
@@ -84,8 +95,9 @@ app.whenReady().then(() => {
     globalShortcut.unregisterAll();
     const h = store.get().settings.hotkeys;
     const reg = (acc: string, fn: () => void) => { try { if (!globalShortcut.register(acc, fn)) log("warn", "hotkeys", "taken", { acc }); } catch (e) { log("warn", "hotkeys", "invalid", { acc, err: String(e) }); } };
-    reg(h.capture, () => capture_("area"));
+    reg(h.capture, () => { log("info", "hotkeys", "capture pressed"); void capture_("area"); });
     reg(h.captureWindow, () => capture_("window"));
+    reg(h.element, () => capture_("element"));
     reg(h.toggleHub, () => windows.toggleHub());
     reg(h.toggleWidget, () => windows.toggleWidget(tray.bounds()));
   }
@@ -111,6 +123,7 @@ app.whenReady().then(() => {
   claude.start();
   cursor.start();
   log("info", "app", "started", { version: app.getVersion(), platform: process.platform });
+  log("info", "permissions", "status", permissions());
   if (process.argv.includes("--dev") || !app.getLoginItemSettings().wasOpenedAtLogin) windows.showHub();
 
   app.on("second-instance", () => windows.showHub());

@@ -6,7 +6,8 @@ import path from "node:path";
 import type { Session, SessionKind, Owner } from "../../../shared/model";
 import type { Store } from "../../core/store";
 import { log } from "../../core/log";
-import { emptyFacts, parseText, stateFromFacts, type Facts } from "./parse";
+import { emptyFacts, parseText, stateFromFacts, needsFromFacts, type Facts } from "./parse";
+import { readRange } from "./files";
 import { head, tail, appended, safeStat, safeReaddir } from "./files";
 
 interface Tracked { file: string; mtime: number; size: number; facts: Facts; offset?: number }
@@ -24,7 +25,8 @@ export class ClaudeProjectsWatcher {
   private loaded = new Set<string>();     // sessions whose transcript the UI asked for
   private timer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private store: Store, private isOurs: (id: string) => boolean, private root = claudeRoot()) {}
+  constructor(private store: Store, private isOurs: (id: string) => boolean,
+              private onConflict: (id: string, app: string) => void = () => undefined, private root = claudeRoot()) {}
 
   start(): void { this.scan(); this.timer = setInterval(() => this.scan(), 2000); }
   stop(): void { if (this.timer) clearInterval(this.timer); }
@@ -64,7 +66,11 @@ export class ClaudeProjectsWatcher {
         if (!st || st.mtimeMs < cutoff) continue;
         const id = name.slice(0, -6);
         const prev = this.tracked.get(id);
-        if (prev && prev.mtime === st.mtimeMs && prev.size === st.size) continue;
+        if (prev && prev.mtime === st.mtimeMs && prev.size === st.size) {
+          // Unchanged file: only the quiet-time based state can move (working -> needs you / idle).
+          if (!this.isOurs(id)) this.refreshState(id, prev);
+          continue;
+        }
         try { this.update(id, file, st.mtimeMs, st.size, prev); }
         catch (e) { log("warn", "watch.claude", "read failed", { id, err: String(e) }); }
       }
@@ -85,13 +91,35 @@ export class ClaudeProjectsWatcher {
       parseText(tail(file, size, 400_000), facts);
     }
     this.tracked.set(id, { file, mtime, size, facts, offset: prev?.offset });
-    if (this.isOurs(id)) return; // the hosted adapter reports live state for sessions ShotDock runs
+    if (this.isOurs(id)) {
+      // Rule 2 guard: if another app writes to a chat ShotDock runs, stop ShotDock's side at once.
+      if (prev && size > prev.size) {
+        const added = readRange(file, prev.size, size);
+        const other = /"entrypoint":"(?!sdk)([^"]+)"/.exec(added);
+        if (other && /"type":"(user|assistant)"/.test(added)) this.onConflict(id, other[1]);
+      }
+      return; // otherwise the hosted adapter reports live state for sessions ShotDock runs
+    }
     const cwd = facts.cwd ?? "";
     const { kind, owner } = ownerFor(facts.entrypoint);
     const s: Session = {
       id, kind, owner, folder: cwd, window: cwd ? path.basename(cwd) : "Unknown folder",
       title: facts.title ?? "Untitled chat", state: stateFromFacts(facts, mtime), model: facts.model, lastActivity: mtime,
+      needs: this.externalNeeds(id, facts, mtime),
     };
     this.store.dispatch({ t: "session.upserted", s });
+  }
+
+  private externalNeeds(id: string, facts: Facts, mtime: number) {
+    const n = needsFromFacts(facts, mtime);
+    return n ? { requestId: `ext-${id}-${facts.pending?.id}`, tool: n.tool, summary: n.summary, canAlways: false, external: true } : undefined;
+  }
+
+  private refreshState(id: string, t: Tracked): void {
+    const cur = this.store.get().sessions[id];
+    if (!cur || cur.kind === "hosted") return;
+    const state = stateFromFacts(t.facts, t.mtime);
+    if (state === cur.state) return;
+    this.store.dispatch({ t: "session.state", id, state, needs: state === "needs-you" ? this.externalNeeds(id, t.facts, t.mtime) : undefined });
   }
 }

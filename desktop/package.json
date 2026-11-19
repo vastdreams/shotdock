@@ -14,7 +14,7 @@
     "dev": "npm run build && electron . --dev",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "pack:mac": "npm run build && electron-builder --mac --dir",
+    "pack:mac": "npm run build && electron-builder --mac --dir && ./scripts/sign-local.sh",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:win": "npm run build && electron-builder --win"
   },
@@ -50,7 +50,8 @@
       "package.json"
     ],
     "asarUnpack": [
-      "node_modules/@anthropic-ai/**"
+      "node_modules/@anthropic-ai/**",
+      "assets/bin/**"
     ],
     "extraMetadata": {
       "main": "dist/main/index.js"

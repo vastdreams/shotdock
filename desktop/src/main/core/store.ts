@@ -12,6 +12,7 @@ export type StoreEvent =
   | { t: "transcript.append"; id: string; items: TranscriptItem[] }
   | { t: "shot.added"; shot: Shot }
   | { t: "shot.removed"; id: string }
+  | { t: "shot.patch"; id: string; patch: Partial<Shot> }
   | { t: "shot.cleared" }
   | { t: "settings.set"; settings: Settings }
   | { t: "error"; scope: string; code: string; detail: string };
@@ -38,7 +39,8 @@ export function reduce(s: AppState, e: StoreEvent): AppState {
     case "session.state": {
       const prev = s.sessions[e.id];
       if (!prev) return s;
-      const next: Session = { ...prev, state: e.state, needs: e.needs, error: e.error, lastActivity: Date.now() };
+      const next: Session = { ...prev, state: e.state, needs: e.needs, error: e.error,
+                              lastActivity: prev.kind === "hosted" ? Date.now() : prev.lastActivity };
       return { ...s, sessions: { ...s.sessions, [e.id]: next } };
     }
     case "session.removed": {
@@ -59,6 +61,8 @@ export function reduce(s: AppState, e: StoreEvent): AppState {
       return { ...s, shots: [...s.shots, e.shot] };
     case "shot.removed":
       return { ...s, shots: s.shots.filter((x) => x.id !== e.id) };
+    case "shot.patch":
+      return { ...s, shots: s.shots.map((x) => (x.id === e.id ? { ...x, ...e.patch } : x)) };
     case "shot.cleared":
       return { ...s, shots: [] };
     case "settings.set":

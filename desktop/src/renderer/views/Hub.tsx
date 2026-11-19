@@ -8,12 +8,17 @@ import { Reader } from "../parts/Reader";
 import { Composer } from "../parts/Composer";
 import { Chooser } from "../parts/Chooser";
 import { Settings } from "./Settings";
+import { ContinueDialog } from "../parts/ContinueDialog";
+import type { Session } from "../../shared/model";
+import type { ContinueChoice } from "../api";
 
 export function Hub({ state }: { state: AppState }) {
   const sessions = useMemo(() => Object.values(state.sessions), [state.sessions]);
   const [selected, setSelected] = useState<string | undefined>();
   const [view, setView] = useState<"chat" | "settings">("chat");
-  const [choosing, setChoosing] = useState(false);
+  const [choosing, setChoosing] = useState<string | false>(false);   // the shot id being placed
+  const [asking, setAsking] = useState<{ s: Session; done(c: ContinueChoice): void } | null>(null);
+  const ask = useCallback((s: Session) => new Promise<ContinueChoice>((done) => setAsking({ s, done })), []);
   const [sideHidden, setSideHiddenRaw] = useState(() => { try { return localStorage.getItem("sideHidden") === "1"; } catch { return false; } });
   const setSideHidden = (v: boolean) => { setSideHiddenRaw(v); try { localStorage.setItem("sideHidden", v ? "1" : "0"); } catch { /* ok */ } };
   useEffect(() => {
@@ -27,7 +32,7 @@ export function Hub({ state }: { state: AppState }) {
   useNav(useCallback((n: Nav) => {
     if (n.open) { setSelected(n.open); setView("chat"); setChoosing(false); }
     if (n.view === "settings") setView("settings");
-    if (n.choose) { setView("chat"); setChoosing(true); }
+    if (n.choose) { setView("chat"); setChoosing(n.choose); }
   }, []));
 
   // Default selection: a chat that needs you, else the newest.
@@ -54,8 +59,8 @@ export function Hub({ state }: { state: AppState }) {
       <main className="main">
         {view === "settings" ? <Settings s={state.settings} notify={notify} onClose={() => setView("chat")} />
           : s ? <>
-              <Reader s={s} items={state.transcripts[s.id] ?? []} notify={notify} />
-              <Composer s={s} shots={state.shots} notify={notify} onOpen={setSelected} />
+              <Reader s={s} items={state.transcripts[s.id] ?? []} notify={notify} ask={ask} onOpen={setSelected} />
+              <Composer s={s} shots={state.shots} notify={notify} onOpen={setSelected} ask={ask} />
             </>
           : <div className="empty big">
               <div>No chat selected.</div>
@@ -64,10 +69,11 @@ export function Hub({ state }: { state: AppState }) {
         <button className="gear" title="Settings" onClick={() => setView(view === "settings" ? "chat" : "settings")}>⚙︎</button>
       </main>
       {choosing && <Chooser sessions={sessions}
-        onPick={(id) => { setSelected(id); setChoosing(false); }}
+        onPick={(id) => { if (choosing) void call("shot.assign", { id: choosing, sessionId: id }); setSelected(id); setChoosing(false); }}
         onNew={() => void newChat()}
         onCancel={() => { setChoosing(false); notify("The screenshot stays attached; pick a chat any time."); }} />}
       {state.lastError && Date.now() - state.lastError.at < 8000 && <div className="toast bad">{state.lastError.detail}</div>}
+      {asking && <ContinueDialog s={asking.s} onChoose={(c) => { asking.done(c); setAsking(null); }} />}
       {toast && <div className={`toast ${toast.bad ? "bad" : ""}`}>{toast.m}</div>}
     </div>
   );

@@ -8,7 +8,7 @@ import type { AppState } from "../shared/model";
 export interface TrayActions {
   toggleWidget(bounds: Electron.Rectangle): void;
   showHub(nav?: Record<string, unknown>): void;
-  capture(mode: "area" | "window" | "screen"): void;
+  capture(mode: "area" | "window" | "screen" | "element"): void;
   newChat(): void;
   quit(): void;
 }
@@ -54,6 +54,7 @@ export class AppTray {
       { label: "Screenshot area", accelerator: s.settings.hotkeys.capture, click: () => this.actions.capture("area") },
       { label: "Screenshot window", accelerator: s.settings.hotkeys.captureWindow, click: () => this.actions.capture("window") },
       { label: "Screenshot whole screen", click: () => this.actions.capture("screen") },
+      { label: "Element under the mouse", accelerator: s.settings.hotkeys.element, click: () => this.actions.capture("element") },
       { type: "separator" },
       needing.length
         ? { label: `Needs you (${needing.length})`, submenu: needing.slice(0, 12).map((x) => ({

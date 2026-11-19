@@ -1,6 +1,7 @@
 // Settings: how ShotDock connects to Claude, defaults for new chats, window behaviour, shortcuts.
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { platform } from "../api";
 import type { Settings as S } from "../../shared/model";
 import { call } from "../api";
 
@@ -9,6 +10,11 @@ const MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "cla
 export function Settings({ s, notify, onClose }: { s: S; notify(m: string, bad?: boolean): void; onClose(): void }) {
   const [key, setKey] = useState("");
   const [testing, setTesting] = useState(false);
+  const [perm, setPerm] = useState<{ screen: string; accessibility: string } | null>(null);
+  useEffect(() => {
+    const load = () => void call("permissions.get", {}).then((r) => r.ok && setPerm(r.value as { screen: string; accessibility: string }));
+    load(); const t = setInterval(load, 3000); return () => clearInterval(t);
+  }, []);
   const set = async (patch: object) => { const r = await call("settings.update", patch as never); if (!r.ok) notify(r.message, true); };
 
   return (
@@ -45,6 +51,19 @@ export function Settings({ s, notify, onClose }: { s: S; notify(m: string, bad?:
           }}>{testing ? "Testing…" : "Test connection"}</button>
         </div>
 
+        {platform === "darwin" && perm && <>
+          <h3>macOS permissions</h3>
+          {([["screen", "Screen recording", "Needed for every screenshot."], ["accessibility", "Accessibility", "Needed only for element screenshots (Ctrl+Opt+E)."]] as const).map(([k, name, why]) => (
+            <div key={k} className="field-row perm-row">
+              <span className={`dot ${perm[k] === "granted" ? "dot-working" : "dot-needs-you"}`} />
+              <span className="lbl"><strong>{name}</strong><br /><small>{why}</small></span>
+              {perm[k] === "granted" ? <span className="muted">Allowed</span>
+                : <button className="btn primary" onClick={() => call("permissions.open", { which: k })}>Allow…</button>}
+            </div>
+          ))}
+          <p className="hint">After turning Screen recording on, quit and reopen ShotDock: macOS applies it on the next start.</p>
+        </>}
+
         <h3>New chats</h3>
         <div className="field-row">
           <span className="lbl">Model</span>
@@ -74,6 +93,7 @@ export function Settings({ s, notify, onClose }: { s: S; notify(m: string, bad?:
         <h3>Shortcuts</h3>
         <table className="keys"><tbody>
           <tr><td>Screenshot an area</td><td><span className="kbd">{s.hotkeys.capture}</span></td></tr>
+          <tr><td>Screenshot the element under the mouse (macOS)</td><td><span className="kbd">{s.hotkeys.element}</span></td></tr>
           <tr><td>Screenshot a window</td><td><span className="kbd">{s.hotkeys.captureWindow}</span></td></tr>
           <tr><td>Show or hide ShotDock</td><td><span className="kbd">{s.hotkeys.toggleHub}</span></td></tr>
           <tr><td>Quick panel (same as the menu bar icon)</td><td><span className="kbd">{s.hotkeys.toggleWidget}</span></td></tr>

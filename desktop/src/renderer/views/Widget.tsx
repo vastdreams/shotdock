@@ -23,6 +23,10 @@ export function Widget({ state }: { state: AppState }) {
         <button className="tile" onClick={() => call("shot.capture", { mode: "area" })}><span>◱</span>Area</button>
         <button className="tile" onClick={() => call("shot.capture", { mode: "window" })}><span>▣</span>Window</button>
         <button className="tile" onClick={() => call("shot.capture", { mode: "screen" })}><span>▭</span>Screen</button>
+        <button className="tile" title="Open a terminal running Claude Code in a folder" onClick={async () => {
+          const f = await call("folder.pick", {});
+          if (f.ok) await call("session.openTerminal", { folder: f.value as string });
+        }}><span>›_</span>Terminal</button>
         <button className="tile" onClick={async () => {
           const f = await call("folder.pick", {});
           if (f.ok) { const r = await call("session.new", { folder: f.value as string, prompt: "" }); if (r.ok) void open(r.value as string); }
@@ -36,7 +40,7 @@ export function Widget({ state }: { state: AppState }) {
               <StateDot s={s} /><span className="row-main"><span className="row-title">{s.title}</span>
                 <span className="row-sub">{s.window} · {s.needs?.summary ?? "waiting"}</span></span>
             </button>
-            {s.needs && <div className="w-need-actions">
+            {s.needs && !s.needs.external && <div className="w-need-actions">
               <button className="btn primary sm" onClick={() => call("session.permission", { id: s.id, requestId: s.needs!.requestId, decision: "allow" })}>Allow</button>
               <button className="btn danger sm" onClick={() => call("session.permission", { id: s.id, requestId: s.needs!.requestId, decision: "deny" })}>Deny</button>
             </div>}

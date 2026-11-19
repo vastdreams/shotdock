@@ -12,11 +12,15 @@ export const Requests = {
   "session.permission": z.object({
     id: z.string().min(1), requestId: z.string().min(1), decision: z.enum(["allow", "always", "deny"]),
   }),
-  "session.takeOver": z.object({ id: z.string().min(1), fork: z.boolean().default(false) }),
+  "session.takeOver": z.object({ id: z.string().min(1), fork: z.boolean().default(false), confirmClosed: z.boolean().default(false) }),
+  "session.openTerminal": z.object({ id: z.string().optional(), folder: z.string().optional() }),
+  "checks.run": z.object({ id: z.string().min(1) }),
   "session.handBack": z.object({ id: z.string().min(1) }),
   "session.openInEditor": z.object({ id: z.string().min(1) }),
   "session.setModel": z.object({ id: z.string().min(1), model: z.string().min(1) }),
-  "shot.capture": z.object({ mode: z.enum(["area", "window", "screen"]).default("area") }),
+  "shot.capture": z.object({ mode: z.enum(["area", "window", "screen", "element"]).default("area") }),
+  "shot.assign": z.object({ id: z.string().min(1), sessionId: z.string().min(1) }),
+  "shot.save": z.object({ id: z.string().min(1), dataUrl: z.string().max(60_000_000) }),
   "shot.paste": z.object({ dataUrl: z.string().max(40_000_000) }),
   "shot.remove": z.object({ id: z.string().min(1) }),
   "transcript.close": z.object({ id: z.string().min(1) }),
@@ -35,6 +39,8 @@ export const Requests = {
   "window.show": z.object({ view: z.enum(["hub", "settings"]), sessionId: z.string().optional() }),
   "window.hideWidget": z.object({}),
   "app.quit": z.object({}),
+  "permissions.get": z.object({}),
+  "permissions.open": z.object({ which: z.enum(["screen", "accessibility"]) }),
 } as const;
 
 export type RequestName = keyof typeof Requests;
