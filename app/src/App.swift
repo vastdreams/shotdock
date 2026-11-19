@@ -36,6 +36,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var lastRect: CGRect?
     var beforeShot: URL?
     var settings: SettingsPanel?
+    var setupPanel: SetupPanel?
+
+    @objc func showSetup() {
+        if setupPanel == nil { setupPanel = SetupPanel() }
+        setupPanel?.show()
+    }
     var historyPanel: HistoryPanel?
     var hotKeys: [EventHotKeyRef?] = []
     var checks: ChecksPanel!
@@ -49,6 +55,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         buildPanel()
         registerHotKeys()
         setUpChecks()
+        // First run, or anything required still missing: show the checklist.
+        if !UserDefaults.standard.bool(forKey: "SetupShown") || !Setup.report().1 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.showSetup() }
+        }
         Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in self?.tick() }
         Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in self?.checks.poll() }
         Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in self?.liveCounts() }
@@ -139,6 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         m.addItem(.separator())
         m.addItem(withTitle: "Open the Screenshots folder", action: #selector(openFolder), keyEquivalent: "")
         m.addItem(withTitle: "Hide  (Ctrl+Opt+S brings it back)", action: #selector(togglePanel), keyEquivalent: "")
+        m.addItem(withTitle: "Setup checklist…", action: #selector(showSetup), keyEquivalent: "")
         m.addItem(withTitle: "Settings and API keys…", action: #selector(showSettings), keyEquivalent: "")
         m.addItem(withTitle: "Check for updates", action: #selector(checkUpdates), keyEquivalent: "")
         m.addItem(withTitle: "Quit ShotDock", action: #selector(quit), keyEquivalent: "")

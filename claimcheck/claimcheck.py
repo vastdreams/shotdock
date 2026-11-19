@@ -28,7 +28,32 @@ import sqlite3
 import subprocess
 import urllib.request
 
-import requests
+
+class _Resp:
+    """The small slice of `requests` the checker used, on the standard library."""
+    def __init__(self, status: int, body: bytes):
+        self.status_code, self._body = status, body
+    def json(self):
+        return json.loads(self._body.decode("utf-8"))
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(f"HTTP {self.status_code}: {self._body[:200]!r}")
+
+
+class requests:  # noqa: N801 - drop-in name
+    @staticmethod
+    def post(url, json=None, headers=None, timeout=60):
+        import json as _j
+        import urllib.error
+        import urllib.request
+        data = _j.dumps(json).encode("utf-8")
+        req = urllib.request.Request(url, data=data, method="POST",
+                                     headers={"Content-Type": "application/json", **(headers or {})})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return _Resp(r.status, r.read())
+        except urllib.error.HTTPError as e:
+            return _Resp(e.code, e.read())
 
 HOME = Path.home()
 PROJECTS = HOME / ".claude" / "projects"

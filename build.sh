@@ -9,10 +9,11 @@ VERSION=${VERSION:-$(cat ../../VERSION)}
 UPDATE_REPO=${UPDATE_REPO:-vastdreams/shotdock}
 UPDATE_KEY=${UPDATE_KEY:-lmqnIbdgGAmgZlIKcpqcYjl0+rxouShE5w2no/REP+w=}
 OUT=${OUT:-$HOME/Applications}
-swiftc -O -o ../ShotDock main.swift Shared.swift Picker.swift Composer.swift Sender.swift Checks.swift Chats.swift Hub.swift \
-  Markup.swift Media.swift Prefs.swift Capture.swift Settings.swift Updater.swift App.swift \
-  -framework Cocoa -framework Carbon -framework Vision -framework AVFoundation -framework CoreImage -framework CryptoKit -framework Security
-A="$OUT/ShotDock.app/Contents"; mkdir -p "$A/MacOS"; cp ../ShotDock "$A/MacOS/ShotDock"
+BIN=$(mktemp -d)/ShotDock
+swiftc -O -o "$BIN" main.swift Shared.swift Picker.swift Composer.swift Sender.swift Checks.swift Chats.swift Hub.swift \
+  Markup.swift Media.swift Prefs.swift Capture.swift Settings.swift Updater.swift Onboarding.swift App.swift \
+  -framework Cocoa -framework Carbon -framework Vision -framework AVFoundation -framework CoreImage -framework CryptoKit -framework Security 2>"${TMPDIR:-/tmp}/shotdock-build.log" || { cat "${TMPDIR:-/tmp}/shotdock-build.log"; exit 1; }
+A="$OUT/ShotDock.app/Contents"; mkdir -p "$A/MacOS"; cp "$BIN" "$A/MacOS/ShotDock"
 cat > "$A/Info.plist" <<PL
 <?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>

@@ -22,17 +22,20 @@ By **FSE Research and Investments**. MIT licence.
 
 ## Install (macOS 13 or later)
 
+**Let your AI agent do it:** point Claude Code or Cursor at [AGENT_SETUP.md](AGENT_SETUP.md) and say "install
+this". It will only ask you to switch on two permissions.
+
+**Or yourself:**
+
 ```
 curl -fsSL https://raw.githubusercontent.com/vastdreams/shotdock/main/install.sh | zsh
 ```
 
-With Apple's command line tools installed it builds from source. Without them it downloads the latest release and
-installs it **only if its Ed25519 signature verifies**. Then:
+It builds on your Mac (if Apple's free command line tools are missing, Apple's installer pops up first). A **setup
+checklist** then opens: click each **Fix** button until everything is green. Two of them are macOS permissions you
+switch on yourself (Screen Recording and Accessibility for "ShotDock Launcher"); the rest are one click.
 
-1. Open **ShotDock Launcher** once and allow **Screen Recording** and **Accessibility** when macOS asks.
-2. In the bar, **⋯ → Settings and API keys**: paste your DeepSeek (or Anthropic or OpenAI) key. Keys go to your
-   Keychain, never to a file.
-3. For Claude Code in Cursor, add the keybinding `ctrl+alt+cmd+c` → `claude-vscode.focus` (see docs/SETUP.md).
+Check anytime: `~/Applications/ShotDock.app/Contents/MacOS/ShotDock --doctor`. Remove: `zsh uninstall.sh`.
 
 Build from source yourself: `git clone`, then `./build.sh && scripts/install_launcher.sh`.
 

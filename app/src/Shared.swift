@@ -2,7 +2,7 @@
 
 import Cocoa
 
-let home = FileManager.default.homeDirectoryForCurrentUser
+let home = URL(fileURLWithPath: ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory())
 let shotsDir = home.appendingPathComponent("Screenshots")
 /// ShotDock's own captures live here, so the Claude Code hook (which reads only the top level) never
 /// attaches them a second time.

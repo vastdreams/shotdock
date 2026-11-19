@@ -15,8 +15,19 @@ final class Launcher: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ n: Notification) {
         _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
         if !CGPreflightScreenCaptureAccess() { _ = CGRequestScreenCaptureAccess() }
-        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.ensure() }
+        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.ensure(); Launcher.publish() }
+        Launcher.publish()
         ensure()
+    }
+
+    /// The launcher holds the permissions, so it is the only process whose answer counts. Written every 5 seconds
+    /// for `ShotDock --doctor` and agents (a terminal asking for itself would report the terminal's permissions).
+    static func publish() {
+        let dir = (ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()) + "/Library/Application Support/ShotDock"
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let state: [String: Any] = ["screen": CGPreflightScreenCaptureAccess(), "accessibility": AXIsProcessTrusted(),
+                                    "ts": Date().timeIntervalSince1970]
+        if let d = try? JSONSerialization.data(withJSONObject: state) { try? d.write(to: URL(fileURLWithPath: dir + "/permissions.json")) }
     }
 
     /// Start ShotDock unless it is already running (for example, started from a terminal during development).

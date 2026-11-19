@@ -64,6 +64,25 @@ if CommandLine.arguments.count > 1, CommandLine.arguments[1] == "--selftest" {
     exit(failed == 0 ? 0 : 1)
 }
 
+// --fix <keybinding|cursor-a11y|hook>: apply one checklist fix (backup kept), then print the checklist.
+if CommandLine.arguments.count > 2, CommandLine.arguments[1] == "--fix" {
+    switch CommandLine.arguments[2] {
+    case "keybinding": Setup.addKeybinding()
+    case "cursor-a11y": Setup.setCursorA11yOff()
+    case "hook": Setup.addHook()
+    default: print("unknown fix; use keybinding, cursor-a11y or hook"); exit(2)
+    }
+    print(Setup.report().0)
+    exit(0)
+}
+
+// --doctor: print the setup checklist (people and agents). Exit 0 when the required steps are done.
+if CommandLine.arguments.count > 1, CommandLine.arguments[1] == "--doctor" {
+    let (text, ready) = Setup.report()
+    print(text)
+    exit(ready ? 0 : 1)
+}
+
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

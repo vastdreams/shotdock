@@ -481,6 +481,11 @@ final class ChecksPanel {
 
     /// Keep claimcheck.py running as ShotDock's child; looked at every 30 seconds.
     private var checker: Process?
+    /// Installed copy first, then a development copy.
+    private var checkerPath: String {
+        let installed = home.appendingPathComponent("Library/Application Support/ShotDock/claimcheck/claimcheck.py").path
+        return FileManager.default.fileExists(atPath: installed) ? installed : home.appendingPathComponent(".claude/tools/claimcheck/claimcheck.py").path
+    }
 
     /// Keep claimcheck.py running as ShotDock's child; looked at every 30 seconds. The script's own pid lock
     /// stops a second copy if one was started elsewhere.
@@ -493,7 +498,7 @@ final class ChecksPanel {
            kill(pid, 0) == 0 { return }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-        p.arguments = [home.appendingPathComponent(".claude/tools/claimcheck/claimcheck.py").path]
+        p.arguments = [checkerPath]
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
         do { try p.run(); checker = p; slog("claimcheck launched by ShotDock (pid \(p.processIdentifier))") }
