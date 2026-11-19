@@ -10,7 +10,7 @@ interface Bridge {
   onState(fn: (s: AppState) => void): () => void;
   onNav(fn: (n: Nav) => void): () => void;
 }
-export interface Nav { open?: string; view?: "hub" | "settings"; choose?: string }
+export interface Nav { open?: string; view?: "hub" | "settings"; choose?: string; code?: boolean }
 
 declare global { interface Window { shotdock: Bridge } }
 

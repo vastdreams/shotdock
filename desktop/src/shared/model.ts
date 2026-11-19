@@ -65,6 +65,7 @@ export interface Settings {
   alwaysOnTop: boolean;
   showOnAllDesktops: boolean;
   recentDays: number;
+  closeTo: "bar" | "menubar";       // what the main window's close button does
 }
 
 export interface AppState {
@@ -84,6 +85,7 @@ export const DEFAULT_SETTINGS: Settings = {
   alwaysOnTop: true,
   showOnAllDesktops: true,
   recentDays: 3,
+  closeTo: "bar",
 };
 
 export const needsYou = (s: Session) => s.state === "needs-you";

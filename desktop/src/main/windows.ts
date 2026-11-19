@@ -14,6 +14,7 @@ function base(extra: Electron.BrowserWindowConstructorOptions): BrowserWindow {
   const w = new BrowserWindow({
     show: false,
     backgroundColor: "#00000000",
+    acceptFirstMouse: true,   // a floating tool: the first click acts, it doesn't just focus the window
     webPreferences: { preload: preload(), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: true },
     ...extra,
   });
@@ -39,13 +40,18 @@ export class Windows {
   ensureHub(): BrowserWindow {
     if (this.hub && !this.hub.isDestroyed()) return this.hub;
     const w = base({
-      width: 1080, height: 720, minWidth: 640, minHeight: 420, title: "ShotDock",
+      width: 1080, height: 720, minWidth: 360, minHeight: 280, title: "ShotDock",
       titleBarStyle: isMac ? "hiddenInset" : "hidden",
       ...(isMac ? { vibrancy: "under-window" as const, visualEffectState: "active" as const }
                 : { titleBarOverlay: { color: "#16181d", symbolColor: "#c9ced6", height: 36 }, backgroundColor: "#16181d" }),
     });
     w.loadFile(rendererIndex(), { query: { view: "hub" } });
-    w.on("close", (e) => { if (!this.quitting) { e.preventDefault(); w.hide(); } });
+    // Close collapses to the floating bar (or hides to the menu bar, per Settings); Quit is in the menus.
+    w.on("close", (e) => {
+      if (this.quitting) return;
+      e.preventDefault();
+      if (this.settings().closeTo === "bar") this.collapseToBar(); else w.hide();
+    });
     this.applyFloating(w);
     this.hub = w;
     return w;
@@ -56,11 +62,50 @@ export class Windows {
     const go = () => { w.show(); w.focus(); if (nav) w.webContents.send(CHANNEL_NAV, nav); };
     if (w.webContents.isLoading()) w.webContents.once("did-finish-load", go); else go();
     this.widget?.hide();
+    this.bar?.hide();
   }
 
   toggleHub(): void {
     const w = this.ensureHub();
-    if (w.isVisible() && w.isFocused()) w.hide(); else this.showHub();
+    if (w.isVisible() && w.isFocused()) { if (this.settings().closeTo === "bar") this.collapseToBar(); else w.hide(); }
+    else this.showHub();
+  }
+
+  // ---- the floating bar: the main window collapsed to a short strip that stays above everything ----
+  bar: BrowserWindow | null = null;
+  private barPos: { x: number; y: number } | null = null;
+
+  ensureBar(): BrowserWindow {
+    if (this.bar && !this.bar.isDestroyed()) return this.bar;
+    const w = base({
+      width: 420, height: 44, frame: false, resizable: false, skipTaskbar: true, fullscreenable: false, hasShadow: true,
+      transparent: true, backgroundColor: "#00000000", ...(isMac ? { roundedCorners: true } : {}),
+    });
+    w.loadFile(rendererIndex(), { query: { view: "bar" } });
+    w.setAlwaysOnTop(true, "floating");
+    w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
+    w.on("moved", () => { const [x, y] = w.getPosition(); this.barPos = { x, y }; });
+    this.bar = w;
+    return w;
+  }
+
+  collapseToBar(): void {
+    const w = this.ensureBar();
+    this.hub?.hide();
+    this.widget?.hide();
+    if (!this.barPos) {
+      const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+      this.barPos = { x: Math.round(area.x + area.width / 2 - 210), y: area.y + 8 };
+    }
+    w.setPosition(this.barPos.x, this.barPos.y, false);
+    const show = () => w.showInactive();
+    if (w.webContents.isLoading()) w.webContents.once("did-finish-load", show); else show();
+  }
+
+  /** The quick panel, opened under the bar. */
+  widgetFromBar(): void {
+    const b = this.bar?.getBounds();
+    this.toggleWidget(b ? { x: b.x + b.width - 190, y: b.y, width: 0, height: b.height } : undefined);
   }
 
   ensureWidget(): BrowserWindow {
@@ -85,7 +130,7 @@ export class Windows {
     const { width, height } = w.getBounds();
     // The menu bar icon can be hidden (crowded menu bar, camera notch): fall back to the top-right corner of the
     // screen under the mouse (macOS) or bottom-right above the taskbar (Windows).
-    if (!trayBounds || trayBounds.height === 0 || trayBounds.width === 0) {
+    if (!trayBounds || trayBounds.height === 0) {
       const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
       w.setPosition(area.x + area.width - width - 10, isMac ? area.y + 6 : area.y + area.height - height - 10, false);
       w.show(); w.focus();
@@ -104,5 +149,5 @@ export class Windows {
 
   refreshFloating(): void { if (this.hub && !this.hub.isDestroyed()) this.applyFloating(this.hub); }
 
-  all(): BrowserWindow[] { return [this.hub, this.widget].filter((w): w is BrowserWindow => !!w && !w.isDestroyed()); }
+  all(): BrowserWindow[] { return [this.hub, this.widget, this.bar].filter((w): w is BrowserWindow => !!w && !w.isDestroyed()); }
 }

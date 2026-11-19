@@ -33,6 +33,7 @@ export const Requests = {
     alwaysOnTop: z.boolean().optional(),
     showOnAllDesktops: z.boolean().optional(),
     recentDays: z.number().int().min(1).max(30).optional(),
+    closeTo: z.enum(["bar", "menubar"]).optional(),
   }),
   "settings.setApiKey": z.object({ key: z.string() }),  // "" clears it
   "settings.test": z.object({}),
@@ -40,6 +41,14 @@ export const Requests = {
   "window.hideWidget": z.object({}),
   "app.quit": z.object({}),
   "permissions.get": z.object({}),
+  "log.renderer": z.object({ level: z.enum(["error", "warn", "info"]), msg: z.string().max(4000) }),
+  "files.changes": z.object({ folder: z.string().min(1) }),
+  "files.read": z.object({ folder: z.string().min(1), path: z.string().min(1) }),
+  "files.write": z.object({ folder: z.string().min(1), path: z.string().min(1), content: z.string().max(8_000_000) }),
+  "files.list": z.object({ folder: z.string().min(1), query: z.string().default("") }),
+  "window.collapse": z.object({}),
+  "window.expand": z.object({}),
+  "window.widgetFromBar": z.object({}),
   "permissions.open": z.object({ which: z.enum(["screen", "accessibility"]) }),
 } as const;
 

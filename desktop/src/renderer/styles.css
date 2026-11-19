@@ -209,3 +209,57 @@ select.model { padding: 4px 6px; border-radius: 7px; border: 1px solid var(--lin
 .reader-head { flex-wrap: wrap; row-gap: 8px; }
 .reader-title { min-width: 180px; }
 .actions { flex-wrap: wrap; justify-content: flex-end; }
+
+/* Top tools (list / collapse / code) */
+.side-toggle { display: none; }
+.top-tools { position: absolute; top: 6px; left: 78px; z-index: 3; display: flex; gap: 2px; -webkit-app-region: no-drag; }
+html[data-platform="win32"] .top-tools { left: 8px; }
+.top-tools button { min-width: 28px; height: 26px; padding: 0 6px; border-radius: 7px; color: var(--muted); font-size: 13px; }
+.top-tools button:hover { background: var(--hover); color: var(--text); }
+.top-tools button.on { background: var(--sel); color: var(--accent); }
+.hub.side-hidden .reader-head { padding-left: 18px; }
+.reader-head { padding-top: 40px; }
+/* Split: chat | code */
+.split { display: flex; flex: 1; min-height: 0; min-width: 0; }
+.chat-col { display: flex; flex-direction: column; flex: 1; min-width: 300px; min-height: 0; }
+.splitter { width: 5px; cursor: col-resize; background: var(--line); flex: none; }
+.splitter:hover { background: var(--accent); }
+.code-col { flex: none; min-width: 280px; display: flex; flex-direction: column; padding-top: 34px; background: var(--bg); }
+.code { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.code-head { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.code-head .seg { flex: 1; margin: 0; }
+.code-body { display: flex; flex: 1; min-height: 0; }
+.code-list { width: 190px; flex: none; overflow: auto; border-right: 1px solid var(--line); padding: 6px; }
+.code-list .search { width: 100%; margin-bottom: 6px; }
+.code-file { display: flex; gap: 6px; align-items: baseline; width: 100%; text-align: left; padding: 4px 6px; border-radius: 6px; font-size: 12px; white-space: nowrap; overflow: hidden; }
+.code-file:hover { background: var(--hover); } .code-file.sel { background: var(--sel); }
+.fname { font-weight: 500; } .fdir { color: var(--faint); overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
+.fmark { font: 600 10.5px var(--mono); width: 12px; flex: none; }
+.f-M { color: var(--orange); } .f-A, .f-U { color: var(--green); } .f-D { color: var(--red); } .f-R { color: var(--accent); }
+.code-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.code-bar { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.code-path { flex: 1; min-width: 0; font: 12px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.seg.small { margin: 0; } .seg.small button { padding: 2px 8px; font-size: 11.5px; }
+.code-editor-wrap { position: relative; flex: 1; min-height: 0; }
+.code-editor { position: absolute; inset: 0; }
+.code-empty { position: absolute; inset: 0; display: grid; place-items: center; }
+/* Floating bar */
+html[data-view="bar"] body { background: transparent; }
+.bar { height: 100vh; display: flex; align-items: center; gap: 2px; padding: 0 6px; border-radius: 12px; -webkit-app-region: drag;
+  background: color-mix(in srgb, var(--panel) 96%, transparent); border: 1px solid var(--line); backdrop-filter: blur(20px); }
+.bar-grip { color: var(--faint); font-size: 11px; padding: 0 4px; letter-spacing: -2px; }
+.bar-status { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; -webkit-app-region: no-drag; text-align: left; }
+.bar-status:hover { background: var(--hover); }
+.bar-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; }
+.bar-btn { width: 30px; height: 30px; border-radius: 8px; color: var(--muted); -webkit-app-region: no-drag; font-size: 14px; }
+.bar-btn:hover { background: var(--hover); color: var(--text); }
+/* Narrow windows */
+@media (max-width: 560px) {
+  .actions .btn { padding: 5px 8px; font-size: 12px; }
+  .composer-bar .left .btn { padding: 5px 6px; }
+  .transcript { padding: 12px 12px 18px; }
+}
+
+.chat-col { overflow: hidden; }
+.composer-bar { flex-wrap: wrap; gap: 6px; }
+.composer-bar .btn.primary { margin-left: auto; }

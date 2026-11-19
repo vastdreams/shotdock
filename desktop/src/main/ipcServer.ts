@@ -12,6 +12,7 @@ import type { Capture } from "./capture/capture";
 import type { Windows } from "./windows";
 import { openInEditor } from "./adapters/editors";
 import { openTerminal } from "./adapters/terminal";
+import * as ws from "./adapters/workspace";
 import { claudeBinary } from "./adapters/hosted/manager";
 import { lastTurn, buildPrompt, parseReport } from "./checks/checker";
 import { systemPreferences, desktopCapturer, shell } from "electron";
@@ -183,6 +184,18 @@ export function handlers(d: Deps): Record<RequestName, Handler> {
     "window.hideWidget": () => { d.windows.widget?.hide(); return ok(); },
     "app.quit": () => { d.quit(); return ok(); },
     "permissions.get": () => ok(permissions()),
+    "log.renderer": ({ level, msg }) => { log(level, "renderer", msg); return ok(); },
+    "files.changes": async ({ folder }) => ok(await ws.changes(folder)),
+    "files.read": async ({ folder, path: rel }) => {
+      try { return ok(await ws.readFile(folder, rel)); } catch (e) { return fail("read_failed", String(e).replace(/^Error: /, "")); }
+    },
+    "files.write": ({ folder, path: rel, content }) => {
+      try { ws.writeFile(folder, rel, content); return ok(); } catch (e) { return fail("write_failed", String(e).replace(/^Error: /, "")); }
+    },
+    "files.list": async ({ folder, query }) => ok(await ws.listFiles(folder, query)),
+    "window.collapse": () => { d.windows.collapseToBar(); return ok(); },
+    "window.expand": () => { d.windows.showHub(); return ok(); },
+    "window.widgetFromBar": () => { d.windows.widgetFromBar(); return ok(); },
     "permissions.open": async ({ which }) => {
       if (which === "accessibility") systemPreferences.isTrustedAccessibilityClient(true);
       else { try { await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 1, height: 1 } }); } catch { /* ok */ } }

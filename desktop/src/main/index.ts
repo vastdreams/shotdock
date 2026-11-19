@@ -117,14 +117,21 @@ app.whenReady().then(() => {
   if (smoke && process.argv.includes("--dev")) setTimeout(async () => {
     const r = await call["session.new"]({ folder: smoke.slice(8), prompt: "Use the Bash tool to run `ls -la` in this folder, then tell me how many files there are." });
     log("info", "smoke", "started", { ok: r.ok, id: r.ok ? r.value : (r as { message: string }).message });
-    if (r.ok) windows.showHub({ open: r.value });
+    if (r.ok) windows.showHub({ open: r.value, code: process.argv.includes("--code") });
   }, 2000);
+  // Dev-only: --open=<chat id> [--code] opens a chat (and the code panel); --collapse starts as the bar.
+  if (process.argv.includes("--dev")) setTimeout(() => {
+    const open = process.argv.find((x) => x.startsWith("--open="))?.slice(7);
+    if (open) windows.showHub({ open, code: process.argv.includes("--code") });
+  }, 2500);
   if (process.argv.includes("--show-widget")) setTimeout(() => windows.toggleWidget(tray.bounds()), 1500);
   claude.start();
   cursor.start();
   log("info", "app", "started", { version: app.getVersion(), platform: process.platform });
   log("info", "permissions", "status", permissions());
-  if (process.argv.includes("--dev") || !app.getLoginItemSettings().wasOpenedAtLogin) windows.showHub();
+  // Start as the floating bar (never steals focus) when opened at login or with --collapse; otherwise open the window.
+  if (process.argv.includes("--collapse") || app.getLoginItemSettings().wasOpenedAtLogin) setTimeout(() => windows.collapseToBar(), 800);
+  else windows.showHub();
 
   app.on("second-instance", () => windows.showHub());
   app.on("activate", () => windows.showHub());

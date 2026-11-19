@@ -31,6 +31,10 @@ editors set it and it makes Electron run as plain Node.
 | Main window | Chats grouped by folder (⌘\ hides the list, ⊟ folds all folders); read any chat; Send, Stop, Allow / Deny, model picker |
 | Chat header | **Continue here** (asks you to close it in the editor first), **Copy to new chat**, **Resume here** (ShotDock's own chats after a restart), More ▾: Check claims, Continue in Terminal, Open in editor / Send back to editor |
 | Screenshot chips | Click to mark up: Box, Arrow, Text, Blur (pixelates) |
+| Top-left of the main window | ☰ / ⟨ chat list (⌘\\), ⌄ collapse to the floating bar, </> code panel (⌘E) |
+| Floating bar | Drag anywhere. Shows what needs you (click to open it), ◱ screenshot, ▾ quick panel, ⤢ expand |
+| Close button | Collapses to the floating bar (Settings › Window › Close button can make it hide to the menu bar) |
+| Code panel | VS Code's editor (Monaco) beside the chat: **Changes** lists the chat folder's git changes and shows each as a diff with highlights; **Files** opens any file; edit and save with ⌘S; follows Claude's edits live. Paths are locked to the chat's folder. |
 
 Connection (Settings): **Use my Claude Code setup** (no key; Claude Code uses what you configured for it) or an
 **Anthropic API key** (encrypted by the OS). ShotDock never offers or handles a claude.ai login.

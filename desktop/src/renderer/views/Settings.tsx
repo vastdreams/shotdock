@@ -81,6 +81,13 @@ export function Settings({ s, notify, onClose }: { s: S; notify(m: string, bad?:
         </div>
 
         <h3>Window</h3>
+        <div className="field-row">
+          <span className="lbl">Close button</span>
+          <select value={s.closeTo} onChange={(e) => set({ closeTo: e.target.value })}>
+            <option value="bar">Collapse to the floating bar</option>
+            <option value="menubar">Hide to the menu bar</option>
+          </select>
+        </div>
         <label className="check"><input type="checkbox" checked={s.alwaysOnTop} onChange={(e) => set({ alwaysOnTop: e.target.checked })} /> Keep ShotDock above other windows</label>
         <label className="check"><input type="checkbox" checked={s.showOnAllDesktops} onChange={(e) => set({ showOnAllDesktops: e.target.checked })} /> Show on every desktop and over full-screen apps</label>
         <div className="field-row">
