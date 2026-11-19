@@ -21,7 +21,7 @@ export function folderIndex(known: string[]): Map<string, string> {
   const m = new Map<string, string>();
   for (const f of known) if (f) m.set(keyOf(f), f);
   const home = os.homedir();
-  for (const base of ["Desktop", "", "Developer", "Documents", "QuotechPrimary"]) {
+  for (const base of ["Desktop", "", "Developer", "Documents", "Projects", "code", "src"]) {
     const dir = path.join(home, base);
     for (const n of safeReaddir(dir)) { const p = path.join(dir, n); if (!m.has(keyOf(p))) m.set(keyOf(p), p); }
   }

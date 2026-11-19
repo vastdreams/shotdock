@@ -51,7 +51,7 @@ export function Hub({ state }: { state: AppState }) {
 
   useNav(useCallback((n: Nav) => {
     if (n.open) { setSelected(n.open); setView("chat"); setChoosing(false); }
-    if (n.view === "settings") setView("settings");
+    if (n.view === "settings") { setView("settings"); setChoosing(false); }
     if (n.choose) { setView("chat"); setChoosing(n.choose); }
     if (n.code) setCodeOpen(true);
   }, []));

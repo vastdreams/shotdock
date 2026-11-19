@@ -5,7 +5,11 @@
 set -e
 APP="${1:-release/mac-arm64/ShotDock.app}"
 ID="ShotDock Local Signing"
-security find-identity -p codesigning | grep -q "$ID" || { echo "Missing identity '$ID'. See docs/SETUP.md."; exit 1; }
+if ! security find-identity -p codesigning | grep -q "$ID"; then
+  # Without the local identity: ad-hoc sign (works, but macOS asks for permissions again after each rebuild).
+  echo "No '$ID' identity in the keychain: ad-hoc signing. See docs/DEVELOPING.md to keep permissions across rebuilds."
+  ID="-"
+fi
 # Inside out: helpers and binaries first, then frameworks, then the app.
 find "$APP/Contents" \( -name "*.dylib" -o -name "*.node" -o -perm +111 -type f \) -not -path "*/Resources/*.lproj/*" -print0 \
   | xargs -0 -I{} codesign --force --sign "$ID" --timestamp=none "{}" 2>/dev/null || true

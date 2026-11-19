@@ -55,9 +55,19 @@ describe("Claude Code transcript parser", () => {
 describe("Cursor agent transcript parser", () => {
   it("reads user queries and assistant text", () => {
     const text = [
-      { role: "user", message: { content: [{ type: "text", text: "<timestamp>x</timestamp>\n<user_query>\nWrite the CEO paper\n</user_query>" }] } },
+      { role: "user", message: { content: [{ type: "text", text: "<timestamp>x</timestamp>\n<user_query>\nWrite the launch plan\n</user_query>" }] } },
       { role: "assistant", message: { content: [{ type: "text", text: "Drafting." }] } },
     ].map((o) => JSON.stringify(o)).join("\n");
-    expect(parseCursor(text)).toEqual([{ key: "c0", role: "user", text: "Write the CEO paper" }, { key: "c1", role: "assistant", text: "Drafting." }]);
+    expect(parseCursor(text)).toEqual([{ key: "c0", role: "user", text: "Write the launch plan" }, { key: "c1", role: "assistant", text: "Drafting." }]);
+  });
+});
+
+describe("tool paths", () => {
+  it("are shown relative to the chat folder", () => {
+    const t = [
+      JSON.stringify({ type: "user", uuid: "u", cwd: "/home/me/app", message: { role: "user", content: "x" } }),
+      JSON.stringify({ type: "assistant", uuid: "a", message: { stop_reason: "tool_use", content: [{ type: "tool_use", id: "t", name: "Read", input: { file_path: "/home/me/app/src/a.ts" } }] } }),
+    ].join("\n");
+    expect(parseText(t).items[1].tool?.input).toBe("src/a.ts");
   });
 });

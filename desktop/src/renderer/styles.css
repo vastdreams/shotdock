@@ -263,3 +263,7 @@ html[data-view="bar"] body { background: transparent; }
 .chat-col { overflow: hidden; }
 .composer-bar { flex-wrap: wrap; gap: 6px; }
 .composer-bar .btn.primary { margin-left: auto; }
+
+.seg button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.sidebar .seg button { flex: auto; padding: 4px 8px; }

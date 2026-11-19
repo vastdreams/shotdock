@@ -4,6 +4,9 @@ import * as monaco from "monaco-editor/editor/editor.api";
 import "monaco-editor/basic-languages/monaco.contribution";
 import "monaco-editor/editor/contrib/find/browser/findController";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
+// The editor-only entry doesn't pull in the icon font (diff gutter, find widget): load it directly.
+import "../../../node_modules/monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css";
+import "../../../node_modules/monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon-modifiers.css";
 
 (self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = { getWorker: () => new EditorWorker() };
 

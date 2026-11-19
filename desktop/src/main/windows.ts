@@ -5,6 +5,7 @@ import path from "node:path";
 import { BrowserWindow, screen, type Rectangle } from "electron";
 import type { Settings } from "../shared/model";
 import { CHANNEL_NAV } from "../shared/ipc";
+import { log } from "./core/log";
 
 const isMac = process.platform === "darwin";
 const rendererIndex = () => path.join(__dirname, "..", "renderer", "index.html");
@@ -47,7 +48,9 @@ export class Windows {
     });
     w.loadFile(rendererIndex(), { query: { view: "hub" } });
     // Close collapses to the floating bar (or hides to the menu bar, per Settings); Quit is in the menus.
+    w.on("hide", () => log("info", "window", "hub hidden", { stack: new Error().stack?.split("\n").slice(2, 7).join(" | ") }));
     w.on("close", (e) => {
+      log("info", "window", "hub close requested", { quitting: this.quitting });
       if (this.quitting) return;
       e.preventDefault();
       if (this.settings().closeTo === "bar") this.collapseToBar(); else w.hide();
@@ -90,6 +93,7 @@ export class Windows {
   }
 
   collapseToBar(): void {
+    log("info", "window", "collapse to bar", { stack: new Error().stack?.split("\n").slice(2, 6).join(" | ") });
     const w = this.ensureBar();
     this.hub?.hide();
     this.widget?.hide();

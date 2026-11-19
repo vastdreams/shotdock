@@ -25,7 +25,8 @@ export function useAppState(): AppState | null {
   const [s, setS] = useState<AppState | null>(null);
   useEffect(() => {
     const off = bridge.onState(setS);
-    void call("state.get", {});
+    // Ask for the current state now; pushes keep it fresh afterwards.
+    void call("state.get", {}).then((r) => { if (r.ok && r.value) setS((cur) => cur ?? (r.value as AppState)); });
     return off;
   }, []);
   return s;

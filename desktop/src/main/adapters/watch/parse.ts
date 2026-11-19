@@ -83,7 +83,9 @@ export function foldLine(o: Record<string, any>, facts: Facts): TranscriptItem[]
   blocks.forEach((b, i) => {
     if (b?.type === "text" && b.text?.trim()) out.push({ key: `${key}-${i}`, role: "assistant", text: b.text, at });
     else if (b?.type === "tool_use") {
-      const input = toolInputSummary(b.name, b.input);
+      // Paths inside the chat's folder read better (and leak less in screenshots) relative to it.
+      let input = toolInputSummary(b.name, b.input);
+      if (facts.cwd) input = input.split(facts.cwd + "/").join("");
       facts.pending = { id: b.id, name: b.name, input };
       out.push({ key: `tool-${b.id}`, role: "tool", text: "", at, tool: { name: b.name, input } });
     }

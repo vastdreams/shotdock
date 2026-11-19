@@ -14,8 +14,11 @@ import { Windows } from "./windows";
 import { AppTray } from "./tray";
 import { registerIpc, handlers, permissions, type Deps } from "./ipcServer";
 import { CHANNEL_STATE } from "../shared/ipc";
+import { renderScreenshots } from "./devShots";
 import type { AppState } from "../shared/model";
 
+// A separate profile (settings, shots, lock) for demos and tests: SHOTDOCK_PROFILE_DIR=/some/dir.
+if (process.env.SHOTDOCK_PROFILE_DIR) app.setPath("userData", process.env.SHOTDOCK_PROFILE_DIR);
 if (!app.requestSingleInstanceLock()) app.quit();
 
 const isMac = process.platform === "darwin";
@@ -48,6 +51,7 @@ app.whenReady().then(() => {
 
   const deps: Deps = { store, settings: settingsFile, hosted, claude, cursor, capture, windows, openTranscripts,
     onSettingsChanged: () => { windows.refreshFloating(); registerHotkeys(); }, quit };
+  deps.snapshot = () => snapshot(store.get());
   registerIpc(deps);
   const call = handlers(deps);
 
@@ -123,12 +127,20 @@ app.whenReady().then(() => {
   if (process.argv.includes("--dev")) setTimeout(() => {
     const open = process.argv.find((x) => x.startsWith("--open="))?.slice(7);
     if (open) windows.showHub({ open, code: process.argv.includes("--code") });
+    if (process.argv.includes("--choose")) windows.showHub({ choose: "demo" });
+    if (process.argv.includes("--settings")) windows.showHub({ view: "settings" });
   }, 2500);
   if (process.argv.includes("--show-widget")) setTimeout(() => windows.toggleWidget(tray.bounds()), 1500);
   claude.start();
   cursor.start();
   log("info", "app", "started", { version: app.getVersion(), platform: process.platform });
   log("info", "permissions", "status", permissions());
+  const shotsDir = process.argv.find((x) => x.startsWith("--screenshots="))?.slice(14);
+  if (shotsDir && process.argv.includes("--dev")) {
+    const idsFile = process.argv.find((x) => x.startsWith("--ids="))?.slice(6);
+    setTimeout(() => void renderScreenshots(windows, shotsDir, idsFile ? JSON.parse(require("node:fs").readFileSync(idsFile, "utf8")) : {}), 2500);
+    return;
+  }
   // Start as the floating bar (never steals focus) when opened at login or with --collapse; otherwise open the window.
   if (process.argv.includes("--collapse") || app.getLoginItemSettings().wasOpenedAtLogin) setTimeout(() => windows.collapseToBar(), 800);
   else windows.showHub();

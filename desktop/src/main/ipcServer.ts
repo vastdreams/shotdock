@@ -31,6 +31,7 @@ import { log } from "./core/log";
 export interface Deps {
   store: Store; settings: SettingsFile; hosted: HostedManager; claude: ClaudeProjectsWatcher; cursor: CursorAgentsWatcher;
   capture: Capture; windows: Windows; openTranscripts: Set<string>; onSettingsChanged(): void; quit(): void;
+  snapshot?(): unknown;   // current state as windows see it (answers state.get, so a window never waits for a change)
 }
 
 type Handler = (args: any) => Promise<Result<unknown>> | Result<unknown>;
@@ -45,7 +46,7 @@ export function handlers(d: Deps): Record<RequestName, Handler> {
   };
 
   return {
-    "state.get": () => ok(),
+    "state.get": () => ok(d.snapshot?.()),
     "transcript.load": ({ id }) => {
       d.openTranscripts.add(id);
       if (d.hosted.has(id) && d.store.get().transcripts[id]) return ok();

@@ -38,7 +38,7 @@ export function Sidebar({ sessions, selected, onSelect, onNew }: {
       <div className="seg">
         {(["all", "needs", "mine"] as const).map((f) => (
           <button key={f} className={filter === f ? "on" : ""} onClick={() => setFilter(f)}>
-            {f === "all" ? "All" : f === "needs" ? `Needs you${needs ? ` · ${needs}` : ""}` : "ShotDock"}
+            {f === "all" ? "All" : f === "needs" ? `Needs you${needs ? ` (${needs})` : ""}` : "ShotDock"}
           </button>
         ))}
       </div>
