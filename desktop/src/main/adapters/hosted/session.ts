@@ -83,7 +83,8 @@ export class HostedSession {
     };
     if (o.executable) options.pathToClaudeCodeExecutable = o.executable;
     // Never let the child think it is Electron-as-Node (set when ShotDock is launched from an editor terminal).
-    delete (options.env as Record<string, string>).ELECTRON_RUN_AS_NODE;
+    for (const k of ["ELECTRON_RUN_AS_NODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDECODE", "VSCODE_PID", "VSCODE_IPC_HOOK", "VSCODE_IPC_HOOK_CLI"])
+      delete (options.env as Record<string, string>)[k];
     if (o.id) { options.resume = o.id; if (o.fork) { options.forkSession = true; options.sessionId = this.id; } }
     else options.sessionId = this.id;
     this.q = query({ prompt: this.inbox, options });

@@ -14,6 +14,13 @@ export function Hub({ state }: { state: AppState }) {
   const [selected, setSelected] = useState<string | undefined>();
   const [view, setView] = useState<"chat" | "settings">("chat");
   const [choosing, setChoosing] = useState(false);
+  const [sideHidden, setSideHiddenRaw] = useState(() => { try { return localStorage.getItem("sideHidden") === "1"; } catch { return false; } });
+  const setSideHidden = (v: boolean) => { setSideHiddenRaw(v); try { localStorage.setItem("sideHidden", v ? "1" : "0"); } catch { /* ok */ } };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key === "\\") { e.preventDefault(); setSideHidden(!sideHidden); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sideHidden]);
   const [toast, setToast] = useState<{ m: string; bad: boolean } | null>(null);
   const notify = useCallback((m: string, bad = false) => { setToast({ m, bad }); setTimeout(() => setToast(null), bad ? 6000 : 2500); }, []);
 
@@ -39,9 +46,11 @@ export function Hub({ state }: { state: AppState }) {
 
   const s = selected ? state.sessions[selected] : undefined;
   return (
-    <div className={`hub ${platform}`}>
+    <div className={`hub ${platform} ${sideHidden ? "side-hidden" : ""}`}>
       <div className="drag-strip" />
-      <Sidebar sessions={sessions} selected={selected} onSelect={(id) => { setSelected(id); setView("chat"); }} onNew={() => void newChat()} />
+      <button className="side-toggle" title={`${sideHidden ? "Show" : "Hide"} the chat list (${platform === "darwin" ? "⌘" : "Ctrl+"}\\)`}
+        onClick={() => setSideHidden(!sideHidden)}>{sideHidden ? "☰" : "⟨"}</button>
+      {!sideHidden && <Sidebar sessions={sessions} selected={selected} onSelect={(id) => { setSelected(id); setView("chat"); }} onNew={() => void newChat()} />}
       <main className="main">
         {view === "settings" ? <Settings s={state.settings} notify={notify} onClose={() => setView("chat")} />
           : s ? <>

@@ -33,7 +33,7 @@ export class Windows {
   private applyFloating(w: BrowserWindow) {
     const s = this.settings();
     w.setAlwaysOnTop(s.alwaysOnTop, "floating");
-    w.setVisibleOnAllWorkspaces(s.showOnAllDesktops, { visibleOnFullScreen: true });
+    w.setVisibleOnAllWorkspaces(s.showOnAllDesktops, { visibleOnFullScreen: true, skipTransformProcessType: true });
   }
 
   ensureHub(): BrowserWindow {

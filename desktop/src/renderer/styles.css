@@ -160,3 +160,10 @@ html[data-view="widget"][data-platform="win32"] body { background: var(--bg); }
 .w-foot { display: flex; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 6px; }
 
 .hint { color: var(--muted); font-size: 12px; margin-top: 10px; }
+
+/* Sidebar collapse */
+.hub.side-hidden { grid-template-columns: 1fr; }
+.side-toggle { position: absolute; top: 6px; left: 80px; z-index: 3; width: 28px; height: 26px; border-radius: 7px; color: var(--muted); -webkit-app-region: no-drag; }
+html[data-platform="win32"] .side-toggle { left: 8px; }
+.side-toggle:hover { background: var(--hover); color: var(--text); }
+.hub.side-hidden .reader-head { padding-left: 120px; }

@@ -13,7 +13,10 @@ export function Sidebar({ sessions, selected, onSelect, onNew }: {
 }) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "needs" | "mine">("all");
-  const [closed, setClosed] = useState<Record<string, boolean>>({});
+  const [closed, setClosedRaw] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem("folded") ?? "{}"); } catch { return {}; }
+  });
+  const setClosed = (c: Record<string, boolean>) => { setClosedRaw(c); try { localStorage.setItem("folded", JSON.stringify(c)); } catch { /* ok */ } };
   const groups = useMemo(() => {
     const ql = q.trim().toLowerCase();
     const list = sessions.filter((s) =>
@@ -22,11 +25,14 @@ export function Sidebar({ sessions, selected, onSelect, onNew }: {
     return groupByWindow(list);
   }, [sessions, q, filter]);
   const needs = sessions.filter((s) => s.state === "needs-you").length;
+  const allFolded = groups.length > 0 && groups.every((g) => closed[g.folder]);
 
   return (
     <aside className="sidebar">
       <div className="side-top">
         <input className="search" placeholder="Search chats" value={q} onChange={(e) => setQ(e.target.value)} />
+        <button className="icon-btn" title={allFolded ? "Expand all folders" : "Collapse all folders"}
+          onClick={() => setClosed(allFolded ? {} : Object.fromEntries(groups.map((g) => [g.folder, true])))}>{allFolded ? "⊞" : "⊟"}</button>
         <button className="icon-btn" title="New chat in a folder" onClick={onNew}>＋</button>
       </div>
       <div className="seg">

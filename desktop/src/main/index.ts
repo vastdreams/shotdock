@@ -91,9 +91,13 @@ app.whenReady().then(() => {
   }
   registerHotkeys();
 
-  // Show the dock icon only while the hub is open, so it can be Cmd+Tabbed to.
+  // macOS only lets accessory (menu bar) apps float over full-screen apps. Show a Dock icon only when the user
+  // turned "Show on every desktop" off; otherwise stay a menu bar app so the window can sit over full-screen Cursor.
   const hub = windows.ensureHub();
-  if (isMac) { hub.on("show", () => void app.dock?.show()); hub.on("hide", () => app.dock?.hide()); }
+  if (isMac) {
+    hub.on("show", () => { if (!store.get().settings.showOnAllDesktops) void app.dock?.show(); });
+    hub.on("hide", () => app.dock?.hide());
+  }
 
   log("info", "tray", "placed", { ...tray.bounds() });
   // Dev-only end-to-end check: --smoke=<folder> starts a hosted chat there with a prompt that needs a permission.
