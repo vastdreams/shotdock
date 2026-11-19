@@ -52,6 +52,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in self?.tick() }
         Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in self?.checks.poll() }
         Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in self?.liveCounts() }
+        // Daily update check; installs only a release whose signature verifies, and says so in a toast.
+        let daily = { [weak self] in Updater.check(manual: false) { note in if !note.isEmpty { self?.showToast(note) } } }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60, execute: daily)
+        Timer.scheduledTimer(withTimeInterval: 86400, repeats: true) { _ in daily() }
         tick()
     }
 
