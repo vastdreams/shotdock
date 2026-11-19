@@ -1,0 +1,93 @@
+{
+  "name": "shotdock-desktop",
+  "productName": "ShotDock",
+  "version": "2.0.0-alpha.1",
+  "description": "Float over every Claude coding session: see, read, drive and feed them from one place.",
+  "author": "FSE Research and Investments",
+  "license": "MIT",
+  "private": true,
+  "main": "dist/main/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron . --dev",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "pack:mac": "npm run build && electron-builder --mac --dir",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.328",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^3.2.7"
+  },
+  "build": {
+    "appId": "com.fseresearch.shotdock",
+    "productName": "ShotDock",
+    "copyright": "\u00a9 2026 FSE Research and Investments",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "dist/**",
+      "assets/**",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/@anthropic-ai/**"
+    ],
+    "extraMetadata": {
+      "main": "dist/main/index.js"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/icon.png",
+      "extendInfo": {
+        "LSUIElement": false,
+        "NSScreenCaptureUsageDescription": "ShotDock takes screenshots you ask for and attaches them to your Claude chats.",
+        "NSAppleEventsUsageDescription": "ShotDock opens chats in your editor."
+      },
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "runAfterFinish": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "fse-research",
+        "repo": "shotdock"
+      }
+    ]
+  }
+}
