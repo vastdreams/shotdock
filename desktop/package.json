@@ -68,7 +68,8 @@
       "extendInfo": {
         "LSUIElement": false,
         "NSScreenCaptureUsageDescription": "ShotDock takes screenshots you ask for and attaches them to your Claude chats.",
-        "NSAppleEventsUsageDescription": "ShotDock opens chats in your editor."
+        "NSAppleEventsUsageDescription": "ShotDock opens chats in your editor.",
+        "NSMicrophoneUsageDescription": "ShotDock records your voice when you press the mic, and turns it into text on this Mac."
       },
       "hardenedRuntime": false,
       "gatekeeperAssess": false

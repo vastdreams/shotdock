@@ -22,6 +22,8 @@ export const Requests = {
   "shot.assign": z.object({ id: z.string().min(1), sessionId: z.string().min(1) }),
   "shot.save": z.object({ id: z.string().min(1), dataUrl: z.string().max(60_000_000) }),
   "shot.paste": z.object({ dataUrl: z.string().max(40_000_000) }),
+  "voice.transcribe": z.object({ wavBase64: z.string().min(100).max(80_000_000) }),
+  "voice.status": z.object({}),
   "shot.remove": z.object({ id: z.string().min(1) }),
   "transcript.close": z.object({ id: z.string().min(1) }),
   "shot.clear": z.object({}),

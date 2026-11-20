@@ -27,6 +27,7 @@ export function permissions() {
   return { screen: systemPreferences.getMediaAccessStatus("screen"), accessibility: systemPreferences.isTrustedAccessibilityClient(false) ? "granted" : "denied" };
 }
 import { log } from "./core/log";
+import { transcribe, voiceStatus } from "./voice";
 
 export interface Deps {
   store: Store; settings: SettingsFile; hosted: HostedManager; claude: ClaudeProjectsWatcher; cursor: CursorAgentsWatcher;
@@ -72,13 +73,14 @@ export function handlers(d: Deps): Record<RequestName, Handler> {
           transcript: d.claude.fileFor(id), returnPid: process.pid, folder: s.folder });
         if (!r.ok) {
           // Couldn't get into the editor's chat box. If the chat isn't active anywhere, ShotDock continues the same
-          // chat itself rather than failing; a draft in the editor's box is the one case we always stop for.
+          // chat itself rather than failing. A leftover draft in the editor's box is cleared and replaced.
           if (CAN_FALL_BACK.has(r.code) && !d.claude.externallyLive(id)) {
             const t = await d.hosted.takeOver(id, s.folder, s.title, false, false);
             if (t.ok) {
               if (!d.store.get().transcripts[id]?.length) d.claude.load(id);
               d.openTranscripts.add(id);
               const sent = d.hosted.send(id, full, shots.map((x) => x.path));
+              log(sent.ok ? "warn" : "error", "deliver", sent.ok ? "fell back: continued in ShotDock" : "fallback send failed", { session: id.slice(0, 8), code: r.code });
               if (sent.ok) {
                 for (const x of shots) d.store.dispatch({ t: "shot.removed", id: x.id });
                 const why = r.code === "accessibility" ? "ShotDock isn't allowed to use Accessibility yet" : "the chat didn't open in the editor";
@@ -87,6 +89,7 @@ export function handlers(d: Deps): Record<RequestName, Handler> {
             }
           }
           if (r.code === "accessibility") systemPreferences.isTrustedAccessibilityClient(true);
+          log("error", "deliver", "not sent: shown to user", { session: id.slice(0, 8), code: r.code, message: r.message });
           return fail("deliver_failed", r.message);
         }
         for (const x of shots) d.store.dispatch({ t: "shot.removed", id: x.id });
@@ -190,6 +193,8 @@ export function handlers(d: Deps): Record<RequestName, Handler> {
       d.store.dispatch({ t: "shot.added", shot });
       return ok(shot.id);
     },
+    "voice.transcribe": async ({ wavBase64 }) => transcribe(wavBase64),
+    "voice.status": () => ok(voiceStatus()),
     "shot.assign": ({ id, sessionId }) => { d.store.dispatch({ t: "shot.patch", id, patch: { sessionId } }); return ok(); },
     "shot.save": ({ id, dataUrl }) => {
       const shot = d.store.get().shots.find((x) => x.id === id);

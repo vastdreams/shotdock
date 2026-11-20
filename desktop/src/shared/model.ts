@@ -84,7 +84,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hotkeys: { capture: "Control+Alt+X", toggleHub: "Control+Alt+Space", captureWindow: "Control+Alt+W", toggleWidget: "Control+Alt+D", element: "Control+Alt+E" },
   alwaysOnTop: true,
   showOnAllDesktops: true,
-  recentDays: 3,
+  recentDays: 14,
   closeTo: "bar",
 };
 
